@@ -1,0 +1,16 @@
+services:
+  docs:
+    image: pdf_web_local_docs
+    container_name: pdf_web_local_docs
+    build:
+      context: .
+      dockerfile: ./compose/local/docs/Dockerfile
+    env_file:
+      - ./.envs/.local/.django
+    volumes:
+      - ./docs:/docs:z
+      - ./config:/app/config:z
+      - ./pdf_web:/app/pdf_web:z
+    ports:
+      - '9000:9000'
+    command: /start-docs
