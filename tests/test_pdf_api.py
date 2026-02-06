@@ -1,5 +1,3 @@
-import io
-
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
 from rest_framework.test import APIClient
@@ -55,6 +53,8 @@ def create_document(workspace, user):
         file=make_pdf_file(),
         created_by=user,
         text_content="Hello World",
+        layout_json={"1": [{"bbox": [0, 0, 10, 10], "text": "Hello", "block_type": 0}]},
+        pdf_info={"page_count": 1},
     )
     document.current_version = version
     document.save(update_fields=["current_version"])
@@ -170,3 +170,84 @@ def test_search_and_audit_log(api_client, user, workspace):
     response = api_client.get(f"/api/versions/{version.id}/download/")
     assert response.status_code == 200
     assert AuditLog.objects.filter(action="document.download").exists()
+
+
+@pytest.mark.django_db
+def test_workspace_membership_and_permissions(api_client, user, workspace):
+    api_client.force_authenticate(user=user)
+    response = api_client.get("/api/workspaces/")
+    assert response.status_code == 200
+    assert response.data
+
+    response = api_client.post(
+        "/api/workspace-members/",
+        {"workspace": workspace.id, "user": user.id, "role": WorkspaceRole.OWNER},
+        format="json",
+    )
+    assert response.status_code in {200, 201, 400}
+
+
+@pytest.mark.django_db
+def test_version_layout_and_permissions_endpoints(api_client, user, workspace):
+    document, version = create_document(workspace, user)
+    api_client.force_authenticate(user=user)
+    response = api_client.get(f"/api/versions/{version.id}/layout/?page=1")
+    assert response.status_code == 200
+    assert response.data["layout"]
+
+    response = api_client.get(f"/api/versions/{version.id}/permissions/")
+    assert response.status_code == 200
+
+    response = api_client.post(
+        f"/api/versions/{version.id}/permissions/",
+        {"security_state": {"allow_print": False}},
+        format="json",
+    )
+    assert response.status_code == 200
+
+
+@pytest.mark.django_db
+def test_operations_watermark_and_encrypt(api_client, user, workspace):
+    document, version = create_document(workspace, user)
+    api_client.force_authenticate(user=user)
+    response = api_client.post(
+        f"/api/versions/{version.id}/watermark/",
+        {"text": "CONFIDENTIAL"},
+        format="json",
+    )
+    assert response.status_code == 200
+    response = api_client.post(
+        f"/api/versions/{version.id}/encrypt/",
+        {"owner_password": "secret"},
+        format="json",
+    )
+    assert response.status_code == 200
+
+
+@pytest.mark.django_db
+def test_chat_and_redactions(api_client, user, workspace):
+    document, version = create_document(workspace, user)
+    api_client.force_authenticate(user=user)
+    response = api_client.post(f"/api/documents/{document.id}/chat/", format="json")
+    assert response.status_code == 200
+    session_id = response.data["id"]
+
+    response = api_client.post(
+        f"/api/chat/{session_id}/message/",
+        {"content": "Summarize"},
+        format="json",
+    )
+    assert response.status_code == 201
+
+    response = api_client.post(f"/api/versions/{version.id}/redaction/suggest/", format="json")
+    assert response.status_code == 200
+
+
+@pytest.mark.django_db
+def test_audit_list_filters(api_client, user, workspace):
+    document, version = create_document(workspace, user)
+    api_client.force_authenticate(user=user)
+    api_client.get(f"/api/versions/{version.id}/download/")
+    response = api_client.get(f"/api/audit/?document_id={document.id}&action=document.download")
+    assert response.status_code == 200
+    assert response.data
