@@ -95,3 +95,48 @@ The following details how to deploy this application.
 ### Docker
 
 See detailed [cookiecutter-django Docker documentation](http://cookiecutter-django.readthedocs.io/en/latest/deployment-with-docker.html).
+
+## PDF Web Backend (Multi-tenant)
+
+### Development with Docker
+
+```bash
+docker compose up --build
+```
+
+The stack includes the Django web service, Celery worker, Celery beat, PostgreSQL, and Redis. API is available at `http://localhost:8000/api/` and media at `http://localhost:8000/media/`.
+
+### Celery Worker (manual)
+
+```bash
+celery -A config.celery_app worker -l info
+celery -A config.celery_app beat -l info
+```
+
+### OCR Dependencies
+
+OCR uses `ocrmypdf` and system binaries (e.g., Tesseract, Ghostscript). Install these in your container or host OS to enable OCR tasks. If not installed, OCR jobs will fail with a clear error message.
+
+### S3 Storage (Production)
+
+Set the following environment variables and `STORAGE_BACKEND=s3`:
+
+```
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+AWS_STORAGE_BUCKET_NAME=...
+AWS_S3_REGION_NAME=...
+```
+
+Downloads and previews will use signed URLs when S3 is enabled.
+
+### API Overview
+
+Key endpoints (all under `/api/`):
+- Documents: `/api/documents/`, `/api/documents/{id}/versions/`, `/api/versions/{id}/pages/`, `/api/versions/{id}/bookmarks/`
+- Search: `/api/versions/{id}/search/`
+- Annotations: `/api/versions/{id}/annotations/`, `/api/annotations/{id}/`
+- Operations: `/api/operations/{job_id}/`, `/api/operations/merge/` (and split/reorder/rotate/delete-pages/compress)
+- AI/OCR: `/api/versions/{id}/ocr/`, `/api/versions/{id}/embed/`, `/api/documents/{id}/chat/`, `/api/chat/{id}/message/`
+- Security: `/api/versions/{id}/encrypt/`, `/api/versions/{id}/watermark/`, `/api/versions/{id}/permissions/`
+- Audit: `/api/audit/`
