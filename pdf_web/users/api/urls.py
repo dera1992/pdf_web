@@ -2,6 +2,7 @@ from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 
 from pdf_web.users.api.auth_views import GoogleSocialLoginAPIView
+from pdf_web.users.api.auth_views import FacebookSocialLoginAPIView
 from pdf_web.users.api.auth_views import LoginAPIView
 from pdf_web.users.api.auth_views import LogoutAPIView
 from pdf_web.users.api.auth_views import PasswordChangeAPIView
@@ -32,6 +33,7 @@ urlpatterns = [
         name="auth-password-change",
     ),
     path("auth/social/google/", GoogleSocialLoginAPIView.as_view(), name="auth-social-google"),
+    path("auth/social/facebook/", FacebookSocialLoginAPIView.as_view(), name="auth-social-facebook"),
     path("auth/token/refresh/", TokenRefreshView.as_view(), name="auth-token-refresh"),
     path("profile/", ProfileAPIView.as_view(), name="profile"),
     path("account/deactivate/", DeactivateAccountAPIView.as_view(), name="account-deactivate"),

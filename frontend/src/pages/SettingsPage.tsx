@@ -140,6 +140,9 @@ export const SettingsPage = () => {
         <Button onClick={handleSubmit} disabled={status === 'saving'}>
           {status === 'saving' ? 'Saving...' : 'Save changes'}
         </Button>
+        <a className="text-xs text-surface-500 hover:text-surface-700" href="/change-password">
+          Change password
+        </a>
       </Card>
     </div>
   )

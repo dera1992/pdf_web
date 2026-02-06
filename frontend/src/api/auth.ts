@@ -30,6 +30,15 @@ export const logoutUser = (refresh: string) =>
 export const refreshAccessToken = (refresh: string) =>
   apiClient.post<{ access: string }>('/auth/token/refresh/', { refresh })
 
+export const requestPasswordReset = (email: string) =>
+  apiClient.post('/auth/password/forgot/', { email })
+
+export const changePassword = (payload: {
+  old_password: string
+  new_password1: string
+  new_password2: string
+}) => apiClient.post('/auth/password/change/', payload)
+
 export const fetchProfile = () =>
   apiClient.get<Profile>('/profile/')
 

@@ -57,6 +57,18 @@ export const RegisterPage = () => {
           <p className="text-sm text-surface-500">Start collaborating in minutes.</p>
         </div>
         <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Button type="button" variant="secondary" className="w-full">
+              Continue with Google
+            </Button>
+            <Button type="button" variant="secondary" className="w-full">
+              Continue with Facebook
+            </Button>
+          </div>
+          <div className="relative py-1 text-center text-xs text-surface-400">
+            <span className="bg-white px-2 dark:bg-surface-950">or</span>
+            <div className="absolute inset-x-0 top-1/2 -z-10 h-px bg-surface-200 dark:bg-surface-800" />
+          </div>
           <div>
             <label className="text-xs font-semibold text-surface-500">Email</label>
             <Input type="email" {...register('email')} />

@@ -253,6 +253,24 @@ Response (200):
 }
 ```
 
+### Social Login (Facebook)
+`POST /api/auth/social/facebook/`
+
+Request (access token):
+```json
+{
+  "access_token": "<facebook_access_token>"
+}
+```
+
+Response (200):
+```json
+{
+  "access": "<jwt_access_token>",
+  "refresh": "<jwt_refresh_token>"
+}
+```
+
 ## JWT Storage Best Practices
 
 - **Preferred:** Store JWTs in httpOnly, secure cookies to reduce XSS exposure.
