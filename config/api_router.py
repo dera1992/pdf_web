@@ -67,6 +67,9 @@ urlpatterns = [
     # ViewSet router URLs
     *router.urls,
 
+    # Auth + Profile endpoints
+    path("", include("pdf_web.users.api.urls")),
+
     # PDF Editor URLs
     path("", include("pdf_web.pdfeditor.urls")),
 

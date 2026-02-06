@@ -1,30 +1,43 @@
 import { create } from 'zustand'
 import type { User } from '../types/api'
 
-const tokenKey = 'cloudpdf-token'
+export const ACCESS_TOKEN_KEY = 'cloudpdf-access-token'
+export const REFRESH_TOKEN_KEY = 'cloudpdf-refresh-token'
+
+export const getStoredAccessToken = () => localStorage.getItem(ACCESS_TOKEN_KEY)
+export const getStoredRefreshToken = () => localStorage.getItem(REFRESH_TOKEN_KEY)
 
 type AuthState = {
   user: User | null
-  token: string | null
+  accessToken: string | null
+  refreshToken: string | null
   setUser: (user: User | null) => void
-  setToken: (token: string | null) => void
+  setTokens: (tokens: { accessToken: string; refreshToken: string }) => void
+  setAccessToken: (accessToken: string | null) => void
   signOut: () => void
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
-  token: localStorage.getItem(tokenKey),
+  accessToken: getStoredAccessToken(),
+  refreshToken: getStoredRefreshToken(),
   setUser: (user) => set({ user }),
-  setToken: (token) => {
-    if (token) {
-      localStorage.setItem(tokenKey, token)
+  setTokens: ({ accessToken, refreshToken }) => {
+    localStorage.setItem(ACCESS_TOKEN_KEY, accessToken)
+    localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken)
+    set({ accessToken, refreshToken })
+  },
+  setAccessToken: (accessToken) => {
+    if (accessToken) {
+      localStorage.setItem(ACCESS_TOKEN_KEY, accessToken)
     } else {
-      localStorage.removeItem(tokenKey)
+      localStorage.removeItem(ACCESS_TOKEN_KEY)
     }
-    set({ token })
+    set({ accessToken })
   },
   signOut: () => {
-    localStorage.removeItem(tokenKey)
-    set({ user: null, token: null })
+    localStorage.removeItem(ACCESS_TOKEN_KEY)
+    localStorage.removeItem(REFRESH_TOKEN_KEY)
+    set({ user: null, accessToken: null, refreshToken: null })
   }
 }))
