@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { fabric } from 'fabric'
+import { Canvas, Rect } from 'fabric'
 import { useAnnotationStore } from '../store/annotationStore'
 
 export const AnnotationCanvas = () => {
@@ -8,7 +8,7 @@ export const AnnotationCanvas = () => {
 
   useEffect(() => {
     if (!canvasRef.current) return
-    const canvas = new fabric.Canvas(canvasRef.current, {
+    const canvas = new Canvas(canvasRef.current, {
       selection: true,
       preserveObjectStacking: true
     })
@@ -16,7 +16,7 @@ export const AnnotationCanvas = () => {
     canvas.on('mouse:down', (event) => {
       if (activeTool === 'note') {
         const pointer = canvas.getPointer(event.e)
-        const rect = new fabric.Rect({
+        const rect = new Rect({
           left: pointer.x,
           top: pointer.y,
           width: 120,
