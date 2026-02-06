@@ -1,21 +1,30 @@
 import { useEffect } from 'react'
-import apiClient from '../api/client'
+import { refreshAccessToken } from '../api/auth'
 import { useAuthStore } from '../store/authStore'
 
 export const useAuthRefresh = () => {
-  const setToken = useAuthStore((state) => state.setToken)
+  const refreshToken = useAuthStore((state) => state.refreshToken)
+  const setAccessToken = useAuthStore((state) => state.setAccessToken)
+  const signOut = useAuthStore((state) => state.signOut)
 
   useEffect(() => {
+    const handleExpired = () => signOut()
+    window.addEventListener('auth:expired', handleExpired)
+
     const refresh = async () => {
+      if (!refreshToken) return
       try {
-        const { data } = await apiClient.post<{ token: string }>('/auth/refresh')
-        setToken(data.token)
+        const { data } = await refreshAccessToken(refreshToken)
+        setAccessToken(data.access)
       } catch {
-        setToken(null)
+        signOut()
       }
     }
 
     const interval = window.setInterval(refresh, 15 * 60 * 1000)
-    return () => window.clearInterval(interval)
-  }, [setToken])
+    return () => {
+      window.removeEventListener('auth:expired', handleExpired)
+      window.clearInterval(interval)
+    }
+  }, [refreshToken, setAccessToken, signOut])
 }

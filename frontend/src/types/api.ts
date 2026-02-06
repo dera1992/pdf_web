@@ -1,8 +1,22 @@
 export type User = {
-  id: string
-  name: string
+  id: number
+  name?: string
   email: string
-  avatarUrl?: string
+}
+
+export type AuthResponse = {
+  access: string
+  refresh: string
+  user: User
+}
+
+export type Profile = {
+  email: string
+  full_name: string
+  phone_number: string
+  avatar: string | null
+  created_at: string
+  updated_at: string
 }
 
 export type Workspace = {

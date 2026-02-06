@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { getStoredAccessToken } from '../store/authStore'
 
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:8000/api',
@@ -14,5 +15,13 @@ apiClient.interceptors.response.use(
     return Promise.reject(error)
   }
 )
+
+apiClient.interceptors.request.use((config) => {
+  const token = getStoredAccessToken()
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
 
 export default apiClient

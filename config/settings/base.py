@@ -1,6 +1,7 @@
 # ruff: noqa: ERA001, E501
 """Base settings to build other settings files upon."""
 
+from datetime import timedelta
 from pathlib import Path
 
 import environ
@@ -79,9 +80,14 @@ THIRD_PARTY_APPS = [
     "allauth.account",
     "allauth.mfa",
     "allauth.socialaccount",
+    "allauth.socialaccount.providers.google",
     "django_celery_beat",
     "rest_framework",
     "rest_framework.authtoken",
+    "rest_framework_simplejwt",
+    "rest_framework_simplejwt.token_blacklist",
+    "dj_rest_auth",
+    "dj_rest_auth.registration",
     "corsheaders",
     "drf_spectacular",
     "channels",
@@ -333,9 +339,15 @@ CELERY_TASK_SEND_SENT_EVENT = True
 # ------------------------------------------------------------------------------
 ACCOUNT_ALLOW_REGISTRATION = env.bool("DJANGO_ACCOUNT_ALLOW_REGISTRATION", True)
 # https://docs.allauth.org/en/latest/account/configuration.html
-ACCOUNT_AUTHENTICATION_METHOD = "username"
+ACCOUNT_AUTHENTICATION_METHOD = "email"
 # https://docs.allauth.org/en/latest/account/configuration.html
 ACCOUNT_EMAIL_REQUIRED = True
+# https://docs.allauth.org/en/latest/account/configuration.html
+ACCOUNT_USERNAME_REQUIRED = False
+# https://docs.allauth.org/en/latest/account/configuration.html
+ACCOUNT_USER_MODEL_USERNAME_FIELD = None
+# https://docs.allauth.org/en/latest/account/configuration.html
+ACCOUNT_UNIQUE_EMAIL = True
 # https://docs.allauth.org/en/latest/account/configuration.html
 ACCOUNT_EMAIL_VERIFICATION = "mandatory"
 # https://docs.allauth.org/en/latest/account/configuration.html
@@ -346,17 +358,53 @@ ACCOUNT_FORMS = {"signup": "pdf_web.users.forms.UserSignupForm"}
 SOCIALACCOUNT_ADAPTER = "pdf_web.users.adapters.SocialAccountAdapter"
 # https://docs.allauth.org/en/latest/socialaccount/configuration.html
 SOCIALACCOUNT_FORMS = {"signup": "pdf_web.users.forms.UserSocialSignupForm"}
+SOCIALACCOUNT_PROVIDERS = {
+    "google": {
+        "SCOPE": ["profile", "email"],
+        "AUTH_PARAMS": {"access_type": "online"},
+    },
+}
 
 # django-rest-framework
 # -------------------------------------------------------------------------------
 # django-rest-framework - https://www.django-rest-framework.org/api-guide/settings/
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework.authentication.SessionAuthentication",
-        "rest_framework.authentication.TokenAuthentication",
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_THROTTLE_CLASSES": (
+        "rest_framework.throttling.ScopedRateThrottle",
+    ),
+    "DEFAULT_THROTTLE_RATES": {
+        "auth": "10/min",
+    },
+}
+
+# dj-rest-auth
+REST_USE_JWT = True
+REST_SESSION_LOGIN = False
+REST_AUTH_SERIALIZERS = {
+    "LOGIN_SERIALIZER": "pdf_web.users.api.serializers.LoginSerializer",
+    "USER_DETAILS_SERIALIZER": "pdf_web.users.api.serializers.UserDetailsSerializer",
+}
+REST_AUTH_REGISTER_SERIALIZERS = {
+    "REGISTER_SERIALIZER": "pdf_web.users.api.serializers.RegisterSerializer",
+}
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": env.timedelta(
+        "JWT_ACCESS_TOKEN_LIFETIME",
+        default=timedelta(minutes=15),
+    ),
+    "REFRESH_TOKEN_LIFETIME": env.timedelta(
+        "JWT_REFRESH_TOKEN_LIFETIME",
+        default=timedelta(days=7),
+    ),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "AUTH_HEADER_TYPES": ("Bearer",),
 }
 
 # django-cors-headers - https://github.com/adamchainz/django-cors-headers#setup
@@ -404,5 +452,5 @@ CORS_ALLOW_METHODS = ["*"]
 
 CORS_EXPOSE_HEADERS = ["Content-Type", "Content-Disposition"]
 
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = env.bool("CORS_ALLOW_ALL_ORIGINS", default=False)
 CORS_ALLOW_PRIVATE_NETWORK = True
