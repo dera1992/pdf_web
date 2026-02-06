@@ -1,5 +1,5 @@
 import { useRef } from 'react'
-import { useVirtualizer } from 'react-virtual'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { useViewerStore } from '../store/viewerStore'
 
 export const ThumbnailPanel = () => {
