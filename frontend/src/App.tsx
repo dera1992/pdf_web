@@ -4,6 +4,9 @@ import { MainLayout } from './layouts/MainLayout'
 import { EditorLayout } from './layouts/EditorLayout'
 import { LoginPage } from './pages/LoginPage'
 import { RegisterPage } from './pages/RegisterPage'
+import { LandingPage } from './pages/LandingPage'
+import { PricingPage } from './pages/PricingPage'
+import { DocsPage } from './pages/DocsPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { WorkspacePage } from './pages/WorkspacePage'
 import { DocumentPage } from './pages/DocumentPage'
@@ -28,7 +31,11 @@ const AppRoutes = () => {
   return (
     <Suspense fallback={<div className="p-6">Loading...</div>}>
       <Routes>
+        <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<RegisterPage />} />
+        <Route path="/pricing" element={<PricingPage />} />
+        <Route path="/docs" element={<DocsPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route
           element={
@@ -55,7 +62,7 @@ const AppRoutes = () => {
           <Route path="/document/:documentId" element={<DocumentPage />} />
           <Route path="/document/:documentId/version/:versionId" element={<DocumentVersionPage />} />
         </Route>
-        <Route path="*" element={<LoginPage />} />
+        <Route path="*" element={<LandingPage />} />
       </Routes>
     </Suspense>
   )
