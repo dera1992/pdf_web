@@ -86,7 +86,8 @@ THIRD_PARTY_APPS = [
 
 LOCAL_APPS = [
     "pdf_web.users",
-    # Your stuff: custom apps go here
+    "pdf_web.pdfeditor",
+    "pdf_web.core",
 ]
 # https://docs.djangoproject.com/en/dev/ref/settings/#installed-apps
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -327,7 +328,7 @@ REST_FRAMEWORK = {
 }
 
 # django-cors-headers - https://github.com/adamchainz/django-cors-headers#setup
-CORS_URLS_REGEX = r"^/api/.*$"
+CORS_URLS_REGEX = r"^(/api/.*|/media/.*)$"
 
 # By Default swagger ui is available only to admin user(s). You can change permission classes to change that
 # See more configuration options at https://drf-spectacular.readthedocs.io/en/latest/settings.html#settings
@@ -340,3 +341,18 @@ SPECTACULAR_SETTINGS = {
 }
 # Your stuff...
 # ------------------------------------------------------------------------------
+
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",  # Next.js dev server
+]
+
+CORS_ALLOW_HEADERS = ["*"]
+CORS_ALLOW_METHODS = ["*"]
+CORS_ALLOW_CREDENTIALS = True
+
+CORS_EXPOSE_HEADERS = ["Content-Type", "Content-Disposition"]
+
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_PRIVATE_NETWORK = True

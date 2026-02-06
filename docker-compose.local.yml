@@ -44,10 +44,10 @@ services:
   redis:
     image: docker.io/redis:6
     container_name: pdf_web_local_redis
-    
+
     volumes:
       - pdf_web_local_redis_data:/data
-    
+
 
   celeryworker:
     <<: *django
@@ -70,11 +70,11 @@ services:
       - mailpit
     ports: []
     command: /start-celerybeat
-
-  flower:
-    <<: *django
-    image: pdf_web_local_flower
-    container_name: pdf_web_local_flower
-    ports:
-      - '5555:5555'
-    command: /start-flower
+#
+#  flower:
+#    <<: *django
+#    image: pdf_web_local_flower
+#    container_name: pdf_web_local_flower
+#    ports:
+#      - '5555:5555'
+#    command: /start-flower

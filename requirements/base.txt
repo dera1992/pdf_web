@@ -7,7 +7,9 @@ hiredis==3.0.0  # https://github.com/redis/hiredis-py
 celery==5.4.0  # pyup: < 6.0  # https://github.com/celery/celery
 django-celery-beat==2.7.0  # https://github.com/celery/django-celery-beat
 flower==2.0.1  # https://github.com/mher/flower
-
+pymupdf
+pdf2image
+pytesseract
 # Django
 # ------------------------------------------------------------------------------
 django==5.0.9  # pyup: < 5.1  # https://www.djangoproject.com/
@@ -22,3 +24,4 @@ djangorestframework==3.15.2  # https://github.com/encode/django-rest-framework
 django-cors-headers==4.5.0  # https://github.com/adamchainz/django-cors-headers
 # DRF-spectacular for api documentation
 drf-spectacular==0.27.2  # https://github.com/tfranzel/drf-spectacular
+fido2==1.1.2
