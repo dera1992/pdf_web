@@ -1,19 +1,84 @@
 from django.conf import settings
-from django.urls import include
-from django.urls import path
-from rest_framework.routers import DefaultRouter
-from rest_framework.routers import SimpleRouter
+from django.urls import include, path
+from rest_framework.routers import DefaultRouter, SimpleRouter
 
+# Users
 from pdf_web.users.api.views import UserViewSet
 
+# Workspaces / Documents
+from pdf_web.documents.api.views import (
+    DocumentViewSet,
+    DocumentVersionViewSet,
+    WorkspaceMemberViewSet,
+    WorkspaceViewSet,
+)
+
+# Annotations
+from pdf_web.annotations.api.views import (
+    AnnotationViewSet,
+    VersionAnnotationBulkView,
+    VersionAnnotationsView,
+)
+
+# Operations / Export
+from pdf_web.operations.api.views import (
+    ExportJobViewSet,
+    OperationJobViewSet,
+)
+
+# AI
+from pdf_web.ai.api.views import (
+    ChatSessionViewSet,
+    RedactionSuggestionViewSet,
+)
+
+# Audit
+from pdf_web.audit.api.views import AuditLogViewSet
+
+
+# ------------------------------------------------------------------------------
+# Router Selection
+# ------------------------------------------------------------------------------
 router = DefaultRouter() if settings.DEBUG else SimpleRouter()
 
-router.register("users", UserViewSet)
 
+# ------------------------------------------------------------------------------
+# ViewSet Registrations
+# ------------------------------------------------------------------------------
+router.register("users", UserViewSet)
+router.register("workspaces", WorkspaceViewSet, basename="workspace")
+router.register("workspace-members", WorkspaceMemberViewSet, basename="workspace-member")
+router.register("documents", DocumentViewSet, basename="document")
+router.register("versions", DocumentVersionViewSet, basename="version")
+router.register("annotations", AnnotationViewSet, basename="annotation")
+router.register("operations", OperationJobViewSet, basename="operation")
+router.register("exports", ExportJobViewSet, basename="export")
+router.register("chat", ChatSessionViewSet, basename="chat")
+router.register("redactions", RedactionSuggestionViewSet, basename="redaction")
+router.register("audit", AuditLogViewSet, basename="audit")
+
+
+# ------------------------------------------------------------------------------
+# URL Patterns
+# ------------------------------------------------------------------------------
+app_name = "api"
 
 urlpatterns = [
-    # Include router-generated URLs (for ViewSets)
+    # ViewSet router URLs
     *router.urls,
-    # Add manual routes for generic views
+
+    # PDF Editor URLs
     path("", include("pdf_web.pdfeditor.urls")),
+
+    # Version Annotation Endpoints
+    path(
+        "versions/<int:version_id>/annotations/",
+        VersionAnnotationsView.as_view(),
+        name="version-annotations",
+    ),
+    path(
+        "versions/<int:version_id>/annotations/bulk/",
+        VersionAnnotationBulkView.as_view(),
+        name="version-annotations-bulk",
+    ),
 ]
