@@ -11,6 +11,7 @@ Welcome to pdf_web's documentation!
    :caption: Contents:
 
    howto
+   backend_blueprint
    users
 
 
