@@ -16,6 +16,8 @@ import { AuditLogPage } from './pages/AuditLogPage'
 import { SecurityPage } from './pages/SecurityPage'
 import { ExportsPage } from './pages/ExportsPage'
 import { ChatPage } from './pages/ChatPage'
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
+import { ChangePasswordPage } from './pages/ChangePasswordPage'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { useAuthRefresh } from './hooks/useAuthRefresh'
 
@@ -33,6 +35,7 @@ const AppRoutes = () => {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/signup" element={<RegisterPage />} />
         <Route path="/pricing" element={<PricingPage />} />
         <Route path="/docs" element={<DocsPage />} />
@@ -47,6 +50,7 @@ const AppRoutes = () => {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/workspace/:id" element={<WorkspacePage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/change-password" element={<ChangePasswordPage />} />
           <Route path="/audit-log" element={<AuditLogPage />} />
           <Route path="/security" element={<SecurityPage />} />
           <Route path="/exports" element={<ExportsPage />} />
