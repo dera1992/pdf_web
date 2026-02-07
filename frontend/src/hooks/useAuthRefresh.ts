@@ -1,11 +1,9 @@
 import { useEffect } from 'react'
-import { refreshAccessToken } from '../api/auth'
+import { refreshTokenIfNeeded } from '../api/client'
 import { useAuthStore } from '../store/authStore'
 
 export const useAuthRefresh = () => {
   const refreshToken = useAuthStore((state) => state.refreshToken)
-  const setAccessToken = useAuthStore((state) => state.setAccessToken)
-  const setRefreshToken = useAuthStore((state) => state.setRefreshToken)
   const signOut = useAuthStore((state) => state.signOut)
 
   useEffect(() => {
@@ -15,11 +13,7 @@ export const useAuthRefresh = () => {
         return
       }
       try {
-        const { data } = await refreshAccessToken(refreshToken)
-        setAccessToken(data.access)
-        if (data.refresh) {
-          setRefreshToken(data.refresh)
-        }
+        await refreshTokenIfNeeded()
       } catch {
         signOut()
       }
@@ -29,11 +23,7 @@ export const useAuthRefresh = () => {
     const refresh = async () => {
       if (!refreshToken) return
       try {
-        const { data } = await refreshAccessToken(refreshToken)
-        setAccessToken(data.access)
-        if (data.refresh) {
-          setRefreshToken(data.refresh)
-        }
+        await refreshTokenIfNeeded()
       } catch {
         signOut()
       }
@@ -45,5 +35,5 @@ export const useAuthRefresh = () => {
       window.removeEventListener('auth:expired', handleExpired)
       window.clearInterval(interval)
     }
-  }, [refreshToken, setAccessToken, setRefreshToken, signOut])
+  }, [refreshToken, signOut])
 }

@@ -16,7 +16,7 @@ const refreshClient = axios.create({
 let isRefreshing = false
 let refreshPromise: Promise<string> | null = null
 
-const refreshTokenIfNeeded = async () => {
+export const refreshTokenIfNeeded = async () => {
   const refreshToken = getStoredRefreshToken()
   if (!refreshToken) {
     useAuthStore.getState().signOut()
