@@ -16,7 +16,12 @@ export const SidebarNav = () => {
 
   const navItems = [
     { to: '/dashboard', label: 'Dashboard', icon: LayoutGrid },
-    { to: workspaceId ? `/workspace/${workspaceId}` : '/dashboard', label: 'Workspace', icon: FileText },
+    {
+      to: workspaceId ? `/workspace/${workspaceId}` : '/dashboard',
+      label: 'Workspace',
+      icon: FileText,
+      disabled: !workspaceId
+    },
     { to: '/settings', label: 'Settings', icon: Settings },
     { to: '/security', label: 'Security', icon: Shield },
     { to: '/audit-log', label: 'Audit Log', icon: History },
@@ -47,6 +52,29 @@ export const SidebarNav = () => {
         <div className="px-3 text-xs font-semibold uppercase tracking-[0.18em] text-surface-400">Workspace</div>
         {navItems.map((item) => {
           const Icon = item.icon
+          if (item.disabled) {
+            return (
+              <button
+                key={`${item.label}-${item.to}`}
+                type="button"
+                className={cn(
+                  'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-surface-400',
+                  'cursor-not-allowed opacity-70'
+                )}
+                onClick={() => {
+                  pushToast({
+                    id: crypto.randomUUID(),
+                    title: 'Workspace unavailable',
+                    description: 'Create a workspace by uploading a PDF first.',
+                    tone: 'warning'
+                  })
+                }}
+              >
+                <Icon className="h-4 w-4" />
+                {item.label}
+              </button>
+            )
+          }
           return (
             <NavLink
               key={`${item.label}-${item.to}`}
