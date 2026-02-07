@@ -16,6 +16,9 @@ from pdf_web.documents.api.views import (
 # Annotations
 from pdf_web.annotations.api.views import (
     AnnotationViewSet,
+    CollaborationEventListView,
+    CommentViewSet,
+    DocumentCommentsView,
     VersionAnnotationBulkView,
     VersionAnnotationsView,
 )
@@ -51,6 +54,7 @@ router.register("workspace-members", WorkspaceMemberViewSet, basename="workspace
 router.register("documents", DocumentViewSet, basename="document")
 router.register("versions", DocumentVersionViewSet, basename="version")
 router.register("annotations", AnnotationViewSet, basename="annotation")
+router.register("comments", CommentViewSet, basename="comment")
 router.register("operations", OperationJobViewSet, basename="operation")
 router.register("exports", ExportJobViewSet, basename="export")
 router.register("chat", ChatSessionViewSet, basename="chat")
@@ -83,5 +87,15 @@ urlpatterns = [
         "versions/<int:version_id>/annotations/bulk/",
         VersionAnnotationBulkView.as_view(),
         name="version-annotations-bulk",
+    ),
+    path(
+        "documents/<int:document_id>/comments/",
+        DocumentCommentsView.as_view(),
+        name="document-comments",
+    ),
+    path(
+        "documents/<int:document_id>/collaboration/events/",
+        CollaborationEventListView.as_view(),
+        name="collaboration-events",
     ),
 ]

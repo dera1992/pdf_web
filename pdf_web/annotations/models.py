@@ -67,6 +67,62 @@ class AnnotationRevision(models.Model):
         ordering = ["revision_number"]
 
 
+class Comment(models.Model):
+    document = models.ForeignKey(
+        Document,
+        on_delete=models.CASCADE,
+        related_name="comments",
+    )
+    annotation = models.ForeignKey(
+        Annotation,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="comments",
+    )
+    parent = models.ForeignKey(
+        "self",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="replies",
+    )
+    body = models.TextField()
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="comments",
+    )
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_deleted = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["created_at"]
+
+
+class CommentRevision(models.Model):
+    comment = models.ForeignKey(
+        Comment,
+        on_delete=models.CASCADE,
+        related_name="revisions",
+    )
+    revision_number = models.PositiveIntegerField()
+    body = models.TextField()
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="comment_revisions",
+    )
+    changed_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        unique_together = ("comment", "revision_number")
+        ordering = ["revision_number"]
+
+
 class CollabEvent(models.Model):
     document = models.ForeignKey(
         Document,
