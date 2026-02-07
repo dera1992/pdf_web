@@ -29,12 +29,25 @@ export type Workspace = {
   created_at?: string
 }
 
+export type DocumentVersion = {
+  id: string
+  document?: string
+  version_number?: number
+  file?: string | null
+  created_by?: string
+  created_at?: string
+  processing_state?: Record<string, string>
+}
+
 export type Document = {
   id: string
   title: string
-  updatedAt: string
-  pageCount: number
-  status: 'ready' | 'processing' | 'error'
+  updatedAt?: string
+  pageCount?: number
+  status?: 'ready' | 'processing' | 'error' | 'queued' | 'running'
+  current_version?: DocumentVersion | null
+  updated_at?: string
+  created_at?: string
 }
 
 export type Annotation = {

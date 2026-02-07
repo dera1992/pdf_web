@@ -10,6 +10,10 @@ export const documentsApi = {
     const { data } = await apiClient.get<Document>(`/documents/${documentId}/`)
     return data
   },
+  async getVersionDownload(versionId: string) {
+    const { data } = await apiClient.get<{ url: string }>(`/versions/${versionId}/download/`)
+    return data
+  },
   async create(workspaceId: string, payload: FormData) {
     const { data } = await apiClient.post<Document>(`/workspaces/${workspaceId}/documents/`, payload)
     return data
