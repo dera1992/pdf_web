@@ -415,7 +415,7 @@ SIMPLE_JWT = {
 # django-cors-headers - https://github.com/adamchainz/django-cors-headers#setup
 
 
-FRONTEND_URL = env("FRONTEND_URL", default="http://localhost:3000")
+FRONTEND_URL = env("FRONTEND_URL", default="http://localhost:5173")
 CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[FRONTEND_URL])
 CORS_ALLOW_CREDENTIALS = True
 CORS_URLS_REGEX = r"^/(api|media)/.*$"
