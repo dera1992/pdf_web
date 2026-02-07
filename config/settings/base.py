@@ -459,3 +459,7 @@ CORS_EXPOSE_HEADERS = ["Content-Type", "Content-Disposition"]
 
 CORS_ALLOW_ALL_ORIGINS = env.bool("CORS_ALLOW_ALL_ORIGINS", default=False)
 CORS_ALLOW_PRIVATE_NETWORK = True
+
+# Auth
+# ------------------------------------------------------------------------------
+REQUIRE_EMAIL_VERIFICATION = env.bool("REQUIRE_EMAIL_VERIFICATION", default=True)

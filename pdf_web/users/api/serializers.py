@@ -1,6 +1,7 @@
 from allauth.account.adapter import get_adapter
 from allauth.account.models import EmailAddress
 from allauth.account.utils import setup_user_email
+from django.conf import settings
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
@@ -79,7 +80,9 @@ class LoginSerializer(serializers.Serializer):
             raise serializers.ValidationError("Unable to log in with provided credentials.")
         if not user.is_active:
             raise serializers.ValidationError("This account is inactive.")
-        if not EmailAddress.objects.filter(user=user, verified=True).exists():
+        if settings.REQUIRE_EMAIL_VERIFICATION and not EmailAddress.objects.filter(
+            user=user, verified=True
+        ).exists():
             raise serializers.ValidationError("Email address has not been verified.")
         attrs["user"] = user
         return attrs
