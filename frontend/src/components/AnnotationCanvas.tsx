@@ -27,9 +27,10 @@ const normalizeRect = (start: Point, end: Point): Rect => {
 
 type AnnotationCanvasProps = {
   documentId: string
+  versionId?: string | null
 }
 
-export const AnnotationCanvas = ({ documentId }: AnnotationCanvasProps) => {
+export const AnnotationCanvas = ({ documentId, versionId }: AnnotationCanvasProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const svgRef = useRef<SVGSVGElement | null>(null)
   const [size, setSize] = useState({ width: 0, height: 0 })
@@ -59,11 +60,11 @@ export const AnnotationCanvas = ({ documentId }: AnnotationCanvasProps) => {
   }, [])
 
   useEffect(() => {
-    if (!documentId) return
+    if (!versionId) return
     let cancelled = false
     const loadAnnotations = async () => {
       try {
-        const data = await annotationsApi.list(documentId)
+        const data = await annotationsApi.list(versionId)
         if (!cancelled) {
           setAnnotations(data)
         }
@@ -77,7 +78,7 @@ export const AnnotationCanvas = ({ documentId }: AnnotationCanvasProps) => {
     return () => {
       cancelled = true
     }
-  }, [documentId, setAnnotations])
+  }, [setAnnotations, versionId])
 
   const toPage = (value: number) => value / zoom
   const fromPage = (value: number) => value * zoom
@@ -114,13 +115,14 @@ export const AnnotationCanvas = ({ documentId }: AnnotationCanvasProps) => {
     async (payload: Annotation) => {
       addAnnotation(payload)
       try {
-        const saved = await annotationsApi.create(documentId, payload)
+        if (!versionId) return
+        const saved = await annotationsApi.create(versionId, payload)
         updateAnnotation(payload.id, { ...saved })
       } catch {
         // Keep optimistic annotation if backend fails.
       }
     },
-    [addAnnotation, documentId, updateAnnotation]
+    [addAnnotation, updateAnnotation, versionId]
   )
 
   const handlePointerUp = () => {
