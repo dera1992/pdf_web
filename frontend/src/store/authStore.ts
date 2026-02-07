@@ -17,6 +17,7 @@ type AuthState = {
   setUser: (user: User | null) => void
   setTokens: (tokens: { accessToken: string; refreshToken: string }) => void
   setAccessToken: (accessToken: string | null) => void
+  setRefreshToken: (refreshToken: string | null) => void
   signOut: () => void
 }
 
@@ -37,6 +38,14 @@ export const useAuthStore = create<AuthState>((set) => ({
       localStorage.removeItem(ACCESS_TOKEN_KEY)
     }
     set({ accessToken })
+  },
+  setRefreshToken: (refreshToken) => {
+    if (refreshToken) {
+      localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken)
+    } else {
+      localStorage.removeItem(REFRESH_TOKEN_KEY)
+    }
+    set({ refreshToken })
   },
   signOut: () => {
     localStorage.removeItem(ACCESS_TOKEN_KEY)
