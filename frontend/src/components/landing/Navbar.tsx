@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { logoutUser } from '../../api/auth'
+import { useAuthStore } from '../../store/authStore'
+import { useToastStore } from '../../store/toastStore'
 
 const menuItems = [
   { label: 'View', href: '#features' },
@@ -39,6 +42,11 @@ export const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [isToolsOpen, setIsToolsOpen] = useState(false)
+  const navigate = useNavigate()
+  const accessToken = useAuthStore((state) => state.accessToken)
+  const refreshToken = useAuthStore((state) => state.refreshToken)
+  const signOut = useAuthStore((state) => state.signOut)
+  const pushToast = useToastStore((state) => state.push)
 
   useEffect(() => {
     const onScroll = () => setIsScrolled(window.scrollY > 8)
@@ -59,6 +67,25 @@ export const Navbar = () => {
   }, [isDrawerOpen])
 
   const handleToolsToggle = () => setIsToolsOpen((prev) => !prev)
+  const isLoggedIn = Boolean(accessToken)
+
+  const handleLogout = async () => {
+    try {
+      if (refreshToken) {
+        await logoutUser(refreshToken)
+      }
+    } catch {
+      pushToast({
+        id: crypto.randomUUID(),
+        title: 'Unable to sign out',
+        description: 'Please try again.',
+        tone: 'warning'
+      })
+    } finally {
+      signOut()
+      navigate('/login')
+    }
+  }
 
   const toolGrid = useMemo(
     () =>
@@ -140,18 +167,38 @@ export const Navbar = () => {
         </nav>
 
         <div className="hidden items-center gap-3 lg:flex">
-          <Link
-            to="/login"
-            className="rounded-full border border-surface-200 px-4 py-2 text-sm font-medium text-surface-700 transition hover:border-accent-200 hover:text-accent-600 dark:border-surface-700 dark:text-surface-200"
-          >
-            Log in
-          </Link>
-          <Link
-            to="/signup"
-            className="rounded-full border border-accent-500 bg-accent-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-accent-600"
-          >
-            Sign up
-          </Link>
+          {isLoggedIn ? (
+            <>
+              <Link
+                to="/dashboard"
+                className="rounded-full border border-surface-200 px-4 py-2 text-sm font-medium text-surface-700 transition hover:border-accent-200 hover:text-accent-600 dark:border-surface-700 dark:text-surface-200"
+              >
+                Dashboard
+              </Link>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="rounded-full border border-surface-200 px-4 py-2 text-sm font-medium text-surface-700 transition hover:border-accent-200 hover:text-accent-600 dark:border-surface-700 dark:text-surface-200"
+              >
+                Log out
+              </button>
+            </>
+          ) : (
+            <>
+              <Link
+                to="/login"
+                className="rounded-full border border-surface-200 px-4 py-2 text-sm font-medium text-surface-700 transition hover:border-accent-200 hover:text-accent-600 dark:border-surface-700 dark:text-surface-200"
+              >
+                Log in
+              </Link>
+              <Link
+                to="/signup"
+                className="rounded-full border border-accent-500 bg-accent-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-accent-600"
+              >
+                Sign up
+              </Link>
+            </>
+          )}
         </div>
 
         <button
@@ -214,18 +261,42 @@ export const Navbar = () => {
               </div>
             </div>
             <div className="mt-auto flex flex-col gap-3 pt-6">
-              <Link
-                to="/login"
-                className="rounded-full border border-surface-200 px-4 py-2 text-center text-sm font-medium text-surface-700 dark:border-surface-700 dark:text-surface-200"
-              >
-                Log in
-              </Link>
-              <Link
-                to="/signup"
-                className="rounded-full border border-accent-500 bg-accent-500 px-4 py-2 text-center text-sm font-semibold text-white"
-              >
-                Sign up
-              </Link>
+              {isLoggedIn ? (
+                <>
+                  <Link
+                    to="/dashboard"
+                    onClick={() => setIsDrawerOpen(false)}
+                    className="rounded-full border border-surface-200 px-4 py-2 text-center text-sm font-medium text-surface-700 dark:border-surface-700 dark:text-surface-200"
+                  >
+                    Dashboard
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsDrawerOpen(false)
+                      void handleLogout()
+                    }}
+                    className="rounded-full border border-surface-200 px-4 py-2 text-center text-sm font-medium text-surface-700 dark:border-surface-700 dark:text-surface-200"
+                  >
+                    Log out
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link
+                    to="/login"
+                    className="rounded-full border border-surface-200 px-4 py-2 text-center text-sm font-medium text-surface-700 dark:border-surface-700 dark:text-surface-200"
+                  >
+                    Log in
+                  </Link>
+                  <Link
+                    to="/signup"
+                    className="rounded-full border border-accent-500 bg-accent-500 px-4 py-2 text-center text-sm font-semibold text-white"
+                  >
+                    Sign up
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>

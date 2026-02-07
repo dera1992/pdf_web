@@ -9,7 +9,7 @@ export type AuthResponse = {
   refresh?: string
   access_token?: string
   refresh_token?: string
-  user: User
+  user?: User
 }
 
 export type Profile = {
@@ -24,7 +24,9 @@ export type Profile = {
 export type Workspace = {
   id: string
   name: string
-  members: number
+  members?: number
+  owner?: string
+  created_at?: string
 }
 
 export type Document = {

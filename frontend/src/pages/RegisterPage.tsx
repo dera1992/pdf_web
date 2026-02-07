@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -7,6 +7,10 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
 import { registerUser } from '../api/auth'
+import { SocialAuthButtons } from '../components/auth/SocialAuthButtons'
+import { useAuthStore } from '../store/authStore'
+import { useNavigate } from 'react-router-dom'
+import { useToastStore } from '../store/toastStore'
 
 const schema = z.object({
   email: z.string().email(),
@@ -23,9 +27,18 @@ export const RegisterPage = () => {
   const { register, handleSubmit, formState } = useForm<RegisterValues>({
     resolver: zodResolver(schema)
   })
+  const navigate = useNavigate()
+  const accessToken = useAuthStore((state) => state.accessToken)
+  const pushToast = useToastStore((state) => state.push)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (accessToken) {
+      navigate('/dashboard')
+    }
+  }, [accessToken, navigate])
 
   const onSubmit = async (values: RegisterValues) => {
     setError(null)
@@ -33,7 +46,15 @@ export const RegisterPage = () => {
     setLoading(true)
     try {
       await registerUser(values)
-      setSuccess('Check your email to verify your account before signing in.')
+      const message = 'Check your email to verify your account before signing in.'
+      setSuccess(message)
+      pushToast({
+        id: crypto.randomUUID(),
+        title: 'Verification email sent',
+        description: message,
+        tone: 'success'
+      })
+      navigate('/')
     } catch (err) {
       if (err instanceof AxiosError) {
         const message =
@@ -57,14 +78,7 @@ export const RegisterPage = () => {
           <p className="text-sm text-surface-500">Start collaborating in minutes.</p>
         </div>
         <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <Button type="button" variant="secondary" className="w-full">
-              Continue with Google
-            </Button>
-            <Button type="button" variant="secondary" className="w-full">
-              Continue with Facebook
-            </Button>
-          </div>
+          <SocialAuthButtons />
           <div className="relative py-1 text-center text-xs text-surface-400">
             <span className="bg-white px-2 dark:bg-surface-950">or</span>
             <div className="absolute inset-x-0 top-1/2 -z-10 h-px bg-surface-200 dark:bg-surface-800" />
