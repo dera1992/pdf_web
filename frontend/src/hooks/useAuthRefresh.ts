@@ -8,7 +8,18 @@ export const useAuthRefresh = () => {
   const signOut = useAuthStore((state) => state.signOut)
 
   useEffect(() => {
-    const handleExpired = () => signOut()
+    const handleExpired = async () => {
+      if (!refreshToken) {
+        signOut()
+        return
+      }
+      try {
+        const { data } = await refreshAccessToken(refreshToken)
+        setAccessToken(data.access)
+      } catch {
+        signOut()
+      }
+    }
     window.addEventListener('auth:expired', handleExpired)
 
     const refresh = async () => {
@@ -21,6 +32,7 @@ export const useAuthRefresh = () => {
       }
     }
 
+    void refresh()
     const interval = window.setInterval(refresh, 15 * 60 * 1000)
     return () => {
       window.removeEventListener('auth:expired', handleExpired)

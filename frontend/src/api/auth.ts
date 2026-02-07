@@ -33,6 +33,13 @@ export const refreshAccessToken = (refresh: string) =>
 export const requestPasswordReset = (email: string) =>
   apiClient.post('/auth/password/forgot/', { email })
 
+export const confirmPasswordReset = (payload: {
+  uid: string
+  token: string
+  new_password1: string
+  new_password2: string
+}) => apiClient.post('/auth/password/reset/confirm/', payload)
+
 export const changePassword = (payload: {
   old_password: string
   new_password1: string
@@ -44,3 +51,9 @@ export const fetchProfile = () =>
 
 export const updateProfile = (payload: ProfileUpdatePayload | FormData) =>
   apiClient.patch<Profile>('/profile/', payload)
+
+export const socialLoginWithGoogle = (accessToken: string) =>
+  apiClient.post<AuthResponse>('/auth/social/google/', { access_token: accessToken })
+
+export const socialLoginWithFacebook = (accessToken: string) =>
+  apiClient.post<AuthResponse>('/auth/social/facebook/', { access_token: accessToken })
