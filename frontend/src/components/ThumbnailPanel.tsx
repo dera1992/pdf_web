@@ -3,9 +3,8 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { useViewerStore } from '../store/viewerStore'
 
 export const ThumbnailPanel = () => {
-  const pageCount = 42
   const parentRef = useRef<HTMLDivElement | null>(null)
-  const { page, setPage } = useViewerStore()
+  const { page, pageCount, setPage } = useViewerStore()
 
   const rowVirtualizer = useVirtualizer({
     count: pageCount,

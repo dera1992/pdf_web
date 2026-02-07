@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { PdfCanvas } from '../components/PdfCanvas'
+import { PdfViewer } from '../components/PdfViewer'
 import { AnnotationCanvas } from '../components/AnnotationCanvas'
 import { CollaborationOverlay } from '../components/CollaborationOverlay'
 import { useCollaborationSocket } from '../websocket/useCollaborationSocket'
@@ -80,8 +80,8 @@ export const DocumentPage = () => {
 
   return (
     <div className="relative flex h-full w-full justify-center">
-      <div className={`relative ${darkMode ? 'mix-blend-screen brightness-90' : ''}`}>
-        <PdfCanvas url={pdfUrl} />
+      <div className={`relative h-full w-full ${darkMode ? 'mix-blend-screen brightness-90' : ''}`}>
+        <PdfViewer url={pdfUrl} />
         <AnnotationCanvas documentId={documentId ?? 'local'} versionId={versionId} />
         <CollaborationOverlay />
       </div>
