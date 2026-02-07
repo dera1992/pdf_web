@@ -4,21 +4,24 @@ import { cn } from '../utils/cn'
 import { logoutUser } from '../api/auth'
 import { useAuthStore } from '../store/authStore'
 import { useToastStore } from '../store/toastStore'
-
-const navItems = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutGrid },
-  { to: '/workspace/alpha', label: 'Workspace', icon: FileText },
-  { to: '/settings', label: 'Settings', icon: Settings },
-  { to: '/security', label: 'Security', icon: Shield },
-  { to: '/audit-log', label: 'Audit Log', icon: History },
-  { to: '/chat', label: 'Chat', icon: MessageSquare }
-]
+import { useWorkspaces } from '../hooks/useWorkspaces'
 
 export const SidebarNav = () => {
   const navigate = useNavigate()
   const refreshToken = useAuthStore((state) => state.refreshToken)
   const signOut = useAuthStore((state) => state.signOut)
   const pushToast = useToastStore((state) => state.push)
+  const { data: workspaces } = useWorkspaces(true)
+  const workspaceId = workspaces?.[0]?.id
+
+  const navItems = [
+    { to: '/dashboard', label: 'Dashboard', icon: LayoutGrid },
+    { to: workspaceId ? `/workspace/${workspaceId}` : '/dashboard', label: 'Workspace', icon: FileText },
+    { to: '/settings', label: 'Settings', icon: Settings },
+    { to: '/security', label: 'Security', icon: Shield },
+    { to: '/audit-log', label: 'Audit Log', icon: History },
+    { to: '/chat', label: 'Chat', icon: MessageSquare }
+  ]
 
   const handleSignOut = async () => {
     try {
