@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { PdfCanvas } from '../components/PdfCanvas'
+import { PdfViewer } from '../components/PdfViewer'
 import { AnnotationCanvas } from '../components/AnnotationCanvas'
 import { documentsApi } from '../api/documents'
 
@@ -34,8 +34,8 @@ export const DocumentVersionPage = () => {
       <div className="absolute left-4 top-4 rounded-full bg-accent-600 px-3 py-1 text-xs font-semibold text-white">
         Viewing version {versionId}
       </div>
-      <div className="relative">
-        <PdfCanvas url={pdfUrl} />
+      <div className="relative h-full w-full">
+        <PdfViewer url={pdfUrl} />
         <AnnotationCanvas documentId={documentId ?? 'local'} versionId={versionId ?? null} />
       </div>
     </div>
