@@ -49,7 +49,7 @@ export const SidebarNav = () => {
           const Icon = item.icon
           return (
             <NavLink
-              key={item.to}
+              key={`${item.label}-${item.to}`}
               to={item.to}
               className={({ isActive }) =>
                 cn(
