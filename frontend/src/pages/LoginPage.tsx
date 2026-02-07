@@ -28,6 +28,23 @@ export const LoginPage = () => {
   const pushToast = useToastStore((state) => state.push)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const getErrorMessage = (err: AxiosError) => {
+    const data = err.response?.data as
+      | {
+          non_field_errors?: string[]
+          detail?: string
+          email?: string[]
+          password?: string[]
+        }
+      | undefined
+    return (
+      data?.non_field_errors?.[0] ??
+      data?.detail ??
+      data?.email?.[0] ??
+      data?.password?.[0] ??
+      'Unable to sign in. Please try again.'
+    )
+  }
 
   const onSubmit = async (values: LoginValues) => {
     setError(null)
@@ -47,7 +64,8 @@ export const LoginPage = () => {
             ? data.refresh_token
             : undefined
       if (!accessToken || !refreshToken) {
-        throw new Error('Missing authentication tokens in response.')
+        setError('Login succeeded but missing authentication tokens.')
+        return
       }
       setTokens({ accessToken, refreshToken })
       setUser(data.user)
@@ -60,7 +78,7 @@ export const LoginPage = () => {
       navigate('/')
     } catch (err) {
       if (err instanceof AxiosError) {
-        setError(err.response?.data?.non_field_errors?.[0] ?? 'Unable to sign in. Please try again.')
+        setError(getErrorMessage(err))
       } else {
         setError('Unable to sign in. Please try again.')
       }
