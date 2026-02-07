@@ -1,10 +1,26 @@
 from django.conf import settings
-from django.contrib.postgres.operations import CreateExtension
 from django.db import migrations
 from django.db import models
+from django.db.utils import NotSupportedError
+from django.db.utils import OperationalError
+from django.db.utils import ProgrammingError
 import django.db.models.deletion
 from django.utils import timezone
 import pgvector.django
+
+
+def create_vector_extension(apps, schema_editor):
+    try:
+        schema_editor.execute('CREATE EXTENSION IF NOT EXISTS "vector"')
+    except (NotSupportedError, OperationalError, ProgrammingError):
+        return
+
+
+def drop_vector_extension(apps, schema_editor):
+    try:
+        schema_editor.execute('DROP EXTENSION IF EXISTS "vector"')
+    except (NotSupportedError, OperationalError, ProgrammingError):
+        return
 
 
 class Migration(migrations.Migration):
@@ -16,7 +32,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        CreateExtension("vector"),
+        migrations.RunPython(create_vector_extension, reverse_code=drop_vector_extension),
         migrations.CreateModel(
             name="OcrJob",
             fields=[

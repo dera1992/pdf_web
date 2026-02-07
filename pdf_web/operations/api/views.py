@@ -93,6 +93,6 @@ class ExportJobViewSet(ReadOnlyModelViewSet):
     def download(self, request, pk=None):
         job = self.get_object()
         if not job.output_version or not job.output_version.file:
-            return Response({\"detail\": \"Export not ready.\"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "Export not ready."}, status=status.HTTP_404_NOT_FOUND)
         url = request.build_absolute_uri(job.output_version.file.url)
-        return Response({\"url\": url})
+        return Response({"url": url})
