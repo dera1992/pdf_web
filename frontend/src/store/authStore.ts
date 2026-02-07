@@ -4,8 +4,11 @@ import type { User } from '../types/api'
 export const ACCESS_TOKEN_KEY = 'cloudpdf-access-token'
 export const REFRESH_TOKEN_KEY = 'cloudpdf-refresh-token'
 
-export const getStoredAccessToken = () => localStorage.getItem(ACCESS_TOKEN_KEY)
-export const getStoredRefreshToken = () => localStorage.getItem(REFRESH_TOKEN_KEY)
+const sanitizeStoredToken = (value: string | null) =>
+  value && value !== 'undefined' && value !== 'null' ? value : null
+
+export const getStoredAccessToken = () => sanitizeStoredToken(localStorage.getItem(ACCESS_TOKEN_KEY))
+export const getStoredRefreshToken = () => sanitizeStoredToken(localStorage.getItem(REFRESH_TOKEN_KEY))
 
 type AuthState = {
   user: User | null

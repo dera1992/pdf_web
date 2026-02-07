@@ -5,8 +5,10 @@ export type User = {
 }
 
 export type AuthResponse = {
-  access: string
-  refresh: string
+  access?: string
+  refresh?: string
+  access_token?: string
+  refresh_token?: string
   user: User
 }
 
