@@ -169,10 +169,10 @@ const PdfPage = ({
   }, [cache, onRender, pageNumber, pdf, zoom])
 
   return (
-    <div ref={containerRef} className="relative mx-auto">
+    <div ref={containerRef} className="relative mx-auto" data-page-number={pageNumber}>
       <canvas ref={canvasRef} className="block rounded-lg shadow-card" />
-      <div ref={textLayerRef} className="textLayer absolute inset-0" />
-      <div ref={annotationLayerRef} className="annotationLayer absolute inset-0" />
+      <div ref={textLayerRef} className="textLayer absolute inset-0" data-page-number={pageNumber} />
+      <div ref={annotationLayerRef} className="annotationLayer absolute inset-0" data-page-number={pageNumber} />
     </div>
   )
 }

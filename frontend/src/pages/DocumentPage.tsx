@@ -7,6 +7,7 @@ import { useCollaborationSocket } from '../websocket/useCollaborationSocket'
 import { useDocumentStore } from '../store/documentStore'
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts'
 import { useCollaborationStore } from '../store/collaborationStore'
+import { useAiStore } from '../store/aiStore'
 import { useViewerStore } from '../store/viewerStore'
 import { documentsApi } from '../api/documents'
 
@@ -16,6 +17,7 @@ export const DocumentPage = () => {
   const collaborators = useCollaborationStore((state) => state.collaborators)
   const setCollaborators = useCollaborationStore((state) => state.setCollaborators)
   const darkMode = useViewerStore((state) => state.darkMode)
+  const setPermissions = useAiStore((state) => state.setPermissions)
   const [versionId, setVersionId] = useState<string | null>(null)
   const [pdfUrl, setPdfUrl] = useState<string>('https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf')
 
@@ -31,6 +33,10 @@ export const DocumentPage = () => {
         if (cancelled) return
         setActiveDocument(data)
         setVersionId(data.current_version?.id?.toString() ?? null)
+        setPermissions({
+          canUseAi: data.status !== 'processing' && data.status !== 'error',
+          usesExternalAi: true
+        })
       } catch {
         if (cancelled) return
         setActiveDocument({
@@ -40,6 +46,7 @@ export const DocumentPage = () => {
           pageCount: 42,
           status: 'ready'
         })
+        setPermissions({ canUseAi: true, usesExternalAi: true })
       }
     }
     loadDocument()
