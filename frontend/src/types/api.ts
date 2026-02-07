@@ -40,11 +40,16 @@ export type Document = {
 export type Annotation = {
   id: string
   documentId: string
-  authorId: string
-  type: string
   page: number
-  payload: Record<string, unknown>
+  type: 'highlight' | 'underline' | 'strike' | 'draw' | 'note' | 'shape' | 'stamp' | 'signature' | 'form'
+  rects?: { x: number; y: number; width: number; height: number }[]
+  points?: { x: number; y: number }[]
+  style?: { color?: string; opacity?: number; thickness?: number; fontSize?: number }
+  content?: string
+  author?: { id: string; name: string }
   createdAt: string
+  updatedAt?: string
+  revision?: number
 }
 
 export type JobStatus = {

@@ -1,8 +1,22 @@
-import { Pencil, Highlighter, Underline, Strikethrough, StickyNote, Shapes, Stamp, PenTool, Undo2, Redo2 } from 'lucide-react'
+import {
+  MousePointer2,
+  Pencil,
+  Highlighter,
+  Underline,
+  Strikethrough,
+  StickyNote,
+  Shapes,
+  Stamp,
+  PenTool,
+  FormInput,
+  Undo2,
+  Redo2
+} from 'lucide-react'
 import { useAnnotationStore } from '../store/annotationStore'
 import { cn } from '../utils/cn'
 
 const tools = [
+  { key: 'select', label: 'Select', icon: MousePointer2 },
   { key: 'highlight', label: 'Highlight', icon: Highlighter },
   { key: 'underline', label: 'Underline', icon: Underline },
   { key: 'strike', label: 'Strikethrough', icon: Strikethrough },
@@ -10,7 +24,8 @@ const tools = [
   { key: 'note', label: 'Sticky note', icon: StickyNote },
   { key: 'shape', label: 'Shapes', icon: Shapes },
   { key: 'stamp', label: 'Stamp', icon: Stamp },
-  { key: 'signature', label: 'Signature', icon: PenTool }
+  { key: 'signature', label: 'Signature', icon: PenTool },
+  { key: 'form', label: 'Form field', icon: FormInput }
 ]
 
 export const AnnotationToolbar = () => {

@@ -44,7 +44,7 @@ export const DocumentPage = () => {
     <div className="relative flex h-full w-full justify-center">
       <div className={`relative ${darkMode ? 'mix-blend-screen brightness-90' : ''}`}>
         <PdfCanvas url="https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf" />
-        <AnnotationCanvas />
+        <AnnotationCanvas documentId={documentId ?? 'local'} />
         <CollaborationOverlay />
       </div>
     </div>
