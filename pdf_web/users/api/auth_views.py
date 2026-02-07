@@ -16,6 +16,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from pdf_web.users.api.serializers import LoginSerializer
 from pdf_web.users.api.serializers import LogoutSerializer
 from pdf_web.users.api.serializers import RegisterSerializer
+from pdf_web.users.api.serializers import UserDetailsSerializer
 
 
 class RegisterAPIView(RegisterView):
@@ -28,6 +29,20 @@ class LoginAPIView(LoginView):
     serializer_class = LoginSerializer
     permission_classes = [permissions.AllowAny]
     throttle_scope = "auth"
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.validated_data["user"]
+        refresh = RefreshToken.for_user(user)
+        return Response(
+            {
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
+                "user": UserDetailsSerializer(user).data,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class LogoutAPIView(APIView):

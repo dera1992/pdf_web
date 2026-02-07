@@ -9,6 +9,7 @@ import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
 import { loginUser } from '../api/auth'
 import { useAuthStore } from '../store/authStore'
+import { useToastStore } from '../store/toastStore'
 
 const schema = z.object({
   email: z.string().email(),
@@ -24,20 +25,60 @@ export const LoginPage = () => {
   const navigate = useNavigate()
   const setTokens = useAuthStore((state) => state.setTokens)
   const setUser = useAuthStore((state) => state.setUser)
+  const pushToast = useToastStore((state) => state.push)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const getErrorMessage = (err: AxiosError) => {
+    const data = err.response?.data as
+      | {
+          non_field_errors?: string[]
+          detail?: string
+          email?: string[]
+          password?: string[]
+        }
+      | undefined
+    return (
+      data?.non_field_errors?.[0] ??
+      data?.detail ??
+      data?.email?.[0] ??
+      data?.password?.[0] ??
+      'Unable to sign in. Please try again.'
+    )
+  }
 
   const onSubmit = async (values: LoginValues) => {
     setError(null)
     setLoading(true)
     try {
       const { data } = await loginUser(values)
-      setTokens({ accessToken: data.access, refreshToken: data.refresh })
+      const accessToken =
+        'access' in data
+          ? data.access
+          : 'access_token' in data
+            ? data.access_token
+            : undefined
+      const refreshToken =
+        'refresh' in data
+          ? data.refresh
+          : 'refresh_token' in data
+            ? data.refresh_token
+            : undefined
+      if (!accessToken || !refreshToken) {
+        setError('Login succeeded but missing authentication tokens.')
+        return
+      }
+      setTokens({ accessToken, refreshToken })
       setUser(data.user)
-      navigate('/dashboard')
+      pushToast({
+        id: crypto.randomUUID(),
+        title: 'Signed in successfully.',
+        description: 'Welcome back!',
+        tone: 'success'
+      })
+      navigate('/')
     } catch (err) {
       if (err instanceof AxiosError) {
-        setError(err.response?.data?.non_field_errors?.[0] ?? 'Unable to sign in. Please try again.')
+        setError(getErrorMessage(err))
       } else {
         setError('Unable to sign in. Please try again.')
       }
