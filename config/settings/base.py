@@ -3,6 +3,7 @@
 
 from datetime import timedelta
 from pathlib import Path
+from datetime import timedelta
 
 import environ
 
@@ -399,13 +400,11 @@ REST_AUTH_REGISTER_SERIALIZERS = {
 }
 
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": env.timedelta(
-        "JWT_ACCESS_TOKEN_LIFETIME",
-        default=timedelta(minutes=15),
+    "ACCESS_TOKEN_LIFETIME": timedelta(
+        minutes=env.int("DJANGO_ACCESS_TOKEN_MINUTES", default=15)
     ),
-    "REFRESH_TOKEN_LIFETIME": env.timedelta(
-        "JWT_REFRESH_TOKEN_LIFETIME",
-        default=timedelta(days=7),
+    "REFRESH_TOKEN_LIFETIME": timedelta(
+        days=env.int("DJANGO_REFRESH_TOKEN_DAYS", default=7)
     ),
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
