@@ -24,7 +24,9 @@ export type Profile = {
 export type Workspace = {
   id: string
   name: string
-  members: number
+  members?: number
+  owner?: string
+  created_at?: string
 }
 
 export type Document = {
