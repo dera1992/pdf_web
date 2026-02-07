@@ -3,10 +3,19 @@ import { useParams } from 'react-router-dom'
 import { PdfViewer } from '../components/PdfViewer'
 import { AnnotationCanvas } from '../components/AnnotationCanvas'
 import { documentsApi } from '../api/documents'
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts'
+import { useAiStore } from '../store/aiStore'
 
 export const DocumentVersionPage = () => {
   const { documentId, versionId } = useParams()
   const [pdfUrl, setPdfUrl] = useState<string>('https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf')
+  const setPermissions = useAiStore((state) => state.setPermissions)
+
+  useKeyboardShortcuts()
+
+  useEffect(() => {
+    setPermissions({ canUseAi: true, usesExternalAi: true })
+  }, [setPermissions])
 
   useEffect(() => {
     if (!versionId) return
