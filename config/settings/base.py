@@ -3,7 +3,8 @@
 
 from datetime import timedelta
 from pathlib import Path
-from datetime import timedelta
+
+from corsheaders.defaults import default_headers
 
 import environ
 
@@ -451,7 +452,7 @@ OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
 #     "http://127.0.0.1:3000",  # Next.js dev server
 # ]
 
-CORS_ALLOW_HEADERS = ["*"]
+CORS_ALLOW_HEADERS = list(default_headers)
 CORS_ALLOW_METHODS = ["*"]
 
 CORS_EXPOSE_HEADERS = ["Content-Type", "Content-Disposition"]
