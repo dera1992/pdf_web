@@ -7,6 +7,7 @@ from dj_rest_auth.views import LoginView
 from dj_rest_auth.views import PasswordChangeView
 from dj_rest_auth.views import PasswordResetConfirmView
 from dj_rest_auth.views import PasswordResetView
+from django.contrib.auth import logout as django_logout
 from rest_framework import permissions
 from rest_framework import status
 from rest_framework.response import Response
@@ -54,6 +55,7 @@ class LogoutAPIView(APIView):
         serializer.is_valid(raise_exception=True)
         refresh = RefreshToken(serializer.validated_data["refresh"])
         refresh.blacklist()
+        django_logout(request)
         return Response({"detail": "Successfully logged out."}, status=status.HTTP_200_OK)
 
 

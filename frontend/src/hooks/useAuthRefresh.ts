@@ -20,20 +20,8 @@ export const useAuthRefresh = () => {
     }
     window.addEventListener('auth:expired', handleExpired)
 
-    const refresh = async () => {
-      if (!refreshToken) return
-      try {
-        await refreshTokenIfNeeded()
-      } catch {
-        signOut()
-      }
-    }
-
-    void refresh()
-    const interval = window.setInterval(refresh, 15 * 60 * 1000)
     return () => {
       window.removeEventListener('auth:expired', handleExpired)
-      window.clearInterval(interval)
     }
   }, [refreshToken, signOut])
 }

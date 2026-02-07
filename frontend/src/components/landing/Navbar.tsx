@@ -168,13 +168,21 @@ export const Navbar = () => {
 
         <div className="hidden items-center gap-3 lg:flex">
           {isLoggedIn ? (
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="rounded-full border border-surface-200 px-4 py-2 text-sm font-medium text-surface-700 transition hover:border-accent-200 hover:text-accent-600 dark:border-surface-700 dark:text-surface-200"
-            >
-              Log out
-            </button>
+            <>
+              <Link
+                to="/dashboard"
+                className="rounded-full border border-surface-200 px-4 py-2 text-sm font-medium text-surface-700 transition hover:border-accent-200 hover:text-accent-600 dark:border-surface-700 dark:text-surface-200"
+              >
+                Dashboard
+              </Link>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="rounded-full border border-surface-200 px-4 py-2 text-sm font-medium text-surface-700 transition hover:border-accent-200 hover:text-accent-600 dark:border-surface-700 dark:text-surface-200"
+              >
+                Log out
+              </button>
+            </>
           ) : (
             <>
               <Link
@@ -254,16 +262,25 @@ export const Navbar = () => {
             </div>
             <div className="mt-auto flex flex-col gap-3 pt-6">
               {isLoggedIn ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsDrawerOpen(false)
-                    void handleLogout()
-                  }}
-                  className="rounded-full border border-surface-200 px-4 py-2 text-center text-sm font-medium text-surface-700 dark:border-surface-700 dark:text-surface-200"
-                >
-                  Log out
-                </button>
+                <>
+                  <Link
+                    to="/dashboard"
+                    onClick={() => setIsDrawerOpen(false)}
+                    className="rounded-full border border-surface-200 px-4 py-2 text-center text-sm font-medium text-surface-700 dark:border-surface-700 dark:text-surface-200"
+                  >
+                    Dashboard
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsDrawerOpen(false)
+                      void handleLogout()
+                    }}
+                    className="rounded-full border border-surface-200 px-4 py-2 text-center text-sm font-medium text-surface-700 dark:border-surface-700 dark:text-surface-200"
+                  >
+                    Log out
+                  </button>
+                </>
               ) : (
                 <>
                   <Link
