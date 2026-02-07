@@ -27,7 +27,7 @@ services:
     build:
       context: .
       dockerfile: ./compose/production/postgres/Dockerfile
-    image: pdf_web_production_postgres
+    image: pgvector/pgvector:pg16
     container_name: pdf_web_local_postgres
     volumes:
       - pdf_web_local_postgres_data:/var/lib/postgresql/data
