@@ -25,9 +25,12 @@ const refreshTokenIfNeeded = async () => {
   if (!isRefreshing) {
     isRefreshing = true
     refreshPromise = refreshClient
-      .post<{ access: string }>('/auth/token/refresh/', { refresh: refreshToken })
+      .post<{ access: string; refresh?: string }>('/auth/token/refresh/', { refresh: refreshToken })
       .then(({ data }) => {
         useAuthStore.getState().setAccessToken(data.access)
+        if (data.refresh) {
+          useAuthStore.getState().setRefreshToken(data.refresh)
+        }
         return data.access
       })
       .catch((refreshError) => {

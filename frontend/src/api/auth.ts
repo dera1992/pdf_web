@@ -28,7 +28,7 @@ export const logoutUser = (refresh: string) =>
   apiClient.post('/auth/logout/', { refresh })
 
 export const refreshAccessToken = (refresh: string) =>
-  apiClient.post<{ access: string }>('/auth/token/refresh/', { refresh })
+  apiClient.post<{ access: string; refresh?: string }>('/auth/token/refresh/', { refresh })
 
 export const requestPasswordReset = (email: string) =>
   apiClient.post('/auth/password/forgot/', { email })
