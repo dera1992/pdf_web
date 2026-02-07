@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -10,6 +10,7 @@ import { Input } from '../components/ui/Input'
 import { loginUser } from '../api/auth'
 import { useAuthStore } from '../store/authStore'
 import { useToastStore } from '../store/toastStore'
+import { SocialAuthButtons } from '../components/auth/SocialAuthButtons'
 
 const schema = z.object({
   email: z.string().email(),
@@ -25,6 +26,7 @@ export const LoginPage = () => {
   const navigate = useNavigate()
   const setTokens = useAuthStore((state) => state.setTokens)
   const setUser = useAuthStore((state) => state.setUser)
+  const accessToken = useAuthStore((state) => state.accessToken)
   const pushToast = useToastStore((state) => state.push)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -45,6 +47,12 @@ export const LoginPage = () => {
       'Unable to sign in. Please try again.'
     )
   }
+
+  useEffect(() => {
+    if (accessToken) {
+      navigate('/dashboard')
+    }
+  }, [accessToken, navigate])
 
   const onSubmit = async (values: LoginValues) => {
     setError(null)
@@ -68,7 +76,9 @@ export const LoginPage = () => {
         return
       }
       setTokens({ accessToken, refreshToken })
-      setUser(data.user)
+      if (data.user) {
+        setUser(data.user)
+      }
       pushToast({
         id: crypto.randomUUID(),
         title: 'Signed in successfully.',
@@ -121,14 +131,7 @@ export const LoginPage = () => {
             <span className="bg-white px-2 dark:bg-surface-950">or</span>
             <div className="absolute inset-x-0 top-1/2 -z-10 h-px bg-surface-200 dark:bg-surface-800" />
           </div>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <Button type="button" variant="secondary" className="w-full">
-              Continue with Google
-            </Button>
-            <Button type="button" variant="secondary" className="w-full">
-              Continue with Facebook
-            </Button>
-          </div>
+          <SocialAuthButtons />
         </form>
       </Card>
     </div>

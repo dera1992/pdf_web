@@ -9,7 +9,7 @@ export type AuthResponse = {
   refresh?: string
   access_token?: string
   refresh_token?: string
-  user: User
+  user?: User
 }
 
 export type Profile = {
