@@ -1,4 +1,4 @@
-FROM docker.io/postgres:16
+FROM docker.io/postgres:18
 
 # Copy maintenance scripts
 COPY ./compose/production/postgres/maintenance /usr/local/bin/maintenance
