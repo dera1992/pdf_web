@@ -75,6 +75,23 @@ def test_upload_creates_document_and_version(api_client, user, workspace):
 
 
 @pytest.mark.django_db
+def test_documents_list_can_be_filtered_by_workspace(api_client, user):
+    workspace_a = Workspace.objects.create(name="A", owner=user)
+    workspace_b = Workspace.objects.create(name="B", owner=user)
+    WorkspaceMember.objects.create(workspace=workspace_a, user=user, role=WorkspaceRole.OWNER)
+    WorkspaceMember.objects.create(workspace=workspace_b, user=user, role=WorkspaceRole.OWNER)
+    create_document(workspace_a, user)
+    create_document(workspace_b, user)
+
+    api_client.force_authenticate(user=user)
+    response = api_client.get(f"/api/documents/?workspace={workspace_a.id}")
+
+    assert response.status_code == 200
+    assert len(response.data) == 1
+    assert response.data[0]["workspace"] == workspace_a.id
+
+
+@pytest.mark.django_db
 def test_permissions_for_annotations_and_encrypt(api_client, user, editor, viewer, workspace):
     WorkspaceMember.objects.create(workspace=workspace, user=editor, role=WorkspaceRole.EDITOR)
     WorkspaceMember.objects.create(workspace=workspace, user=viewer, role=WorkspaceRole.VIEWER)
