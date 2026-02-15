@@ -68,9 +68,13 @@ class DocumentViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Document.objects.filter(
+        queryset = Document.objects.filter(
             Q(workspace__owner=self.request.user) | Q(workspace__memberships__user=self.request.user)
         ).distinct()
+        workspace_id = self.request.query_params.get("workspace")
+        if workspace_id:
+            queryset = queryset.filter(workspace_id=workspace_id)
+        return queryset
 
     def get_serializer_class(self):
         if self.action == "create":
