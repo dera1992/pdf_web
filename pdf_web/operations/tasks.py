@@ -63,7 +63,12 @@ def process_conversion_job(self, job_id: int) -> int:
     job.save(update_fields=["status", "progress"])
     _notify_workspace(job.workspace_id, {"job_id": job.id, "status": job.status, "progress": job.progress, "result_url": None})
     try:
-        output = create_converted_version(job.version, target_format=job.target_format, created_by=job.requested_by)
+        output = create_converted_version(
+            job.version,
+            target_format=job.target_format,
+            created_by=job.requested_by,
+            conversion_params=job.params,
+        )
         if output.file and output.file.name.lower().endswith(".pdf"):
             # Generate page assets immediately so document review screens can render
             # the converted file right away instead of waiting on a separate queue.

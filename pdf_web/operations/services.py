@@ -5,6 +5,9 @@ from datetime import timedelta
 from io import BytesIO
 from pathlib import Path
 import re
+import shutil
+import subprocess
+import tempfile
 import zipfile
 from xml.etree import ElementTree
 
@@ -25,6 +28,16 @@ EXT_BY_TARGET = {
     "ppt": "pptx",
     "jpg": "jpg",
 }
+
+
+def _is_truthy(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    if isinstance(value, (int, float)):
+        return bool(value)
+    return False
 
 
 def clone_version(version: DocumentVersion, *, created_by=None, processing_state: dict | None = None) -> DocumentVersion:
@@ -140,7 +153,44 @@ def _extract_ooxml_text(source_bytes: bytes, source_name: str) -> str:
     return ""
 
 
-def _pdf_from_upload(version: DocumentVersion) -> bytes:
+
+
+def _convert_excel_with_libreoffice(source_bytes: bytes, source_name: str) -> bytes | None:
+    soffice_bin = shutil.which("soffice") or shutil.which("libreoffice")
+    if not soffice_bin:
+        return None
+
+    suffix = Path(source_name).suffix or ".xlsx"
+    with tempfile.TemporaryDirectory(prefix="excel-to-pdf-") as tmp_dir:
+        tmp_path = Path(tmp_dir)
+        input_path = tmp_path / f"input{suffix}"
+        output_path = tmp_path / "input.pdf"
+        input_path.write_bytes(source_bytes)
+
+        command = [
+            soffice_bin,
+            "--headless",
+            "--nologo",
+            "--nolockcheck",
+            "--nodefault",
+            "--nofirststartwizard",
+            "--convert-to",
+            "pdf:calc_pdf_Export",
+            str(input_path),
+            "--outdir",
+            str(tmp_path),
+        ]
+        try:
+            subprocess.run(command, check=True, capture_output=True, timeout=60)
+        except (subprocess.SubprocessError, OSError):
+            return None
+
+        if not output_path.exists():
+            return None
+        pdf_bytes = output_path.read_bytes()
+        return pdf_bytes if pdf_bytes.startswith(b"%PDF") else None
+
+def _pdf_from_upload(version: DocumentVersion, *, allow_excel_text_fallback: bool = False) -> bytes:
     if not version.file:
         return _minimal_pdf_bytes("Converted to PDF")
     version.file.open("rb")
@@ -163,6 +213,16 @@ def _pdf_from_upload(version: DocumentVersion) -> bytes:
         except Exception:  # noqa: BLE001
             pass
 
+    if source_name.endswith((".xlsx", ".xls", ".xlsm")):
+        converted_pdf = _convert_excel_with_libreoffice(source_bytes, source_name)
+        if converted_pdf:
+            return converted_pdf
+        if not allow_excel_text_fallback:
+            raise RuntimeError(
+                "High-fidelity Excel to PDF conversion is unavailable. "
+                "Install LibreOffice/soffice or retry with allow_text_fallback=true."
+            )
+
     ooxml_text = _extract_ooxml_text(source_bytes, source_name)
     if ooxml_text:
         return _minimal_pdf_bytes(ooxml_text[:1200])
@@ -176,14 +236,24 @@ def _pdf_from_upload(version: DocumentVersion) -> bytes:
     return _minimal_pdf_bytes(text_snippet[:400])
 
 
-def create_converted_version(version: DocumentVersion, *, target_format: str, created_by=None) -> DocumentVersion:
+def create_converted_version(
+    version: DocumentVersion,
+    *,
+    target_format: str,
+    created_by=None,
+    conversion_params: dict | None = None,
+) -> DocumentVersion:
     document = version.document
     next_version_number = (document.versions.aggregate(max_num=models.Max("version_number")) or {}).get("max_num", 0) + 1
     base_name = Path(version.file.name).stem if version.file else f"version-{version.id}"
     extension = EXT_BY_TARGET.get(target_format, "bin")
+    conversion_params = conversion_params or {}
 
     if target_format == "pdf":
-        output_bytes = _pdf_from_upload(version)
+        output_bytes = _pdf_from_upload(
+            version,
+            allow_excel_text_fallback=_is_truthy(conversion_params.get("allow_text_fallback")),
+        )
     elif target_format == "jpg":
         output_bytes = b"\xff\xd8\xff\xdb\x00C\x00" + b"0" * 128 + b"\xff\xd9"
     else:

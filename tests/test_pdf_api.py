@@ -423,7 +423,7 @@ def test_guest_docx_to_pdf_contains_extracted_text(api_client):
 
 @pytest.mark.django_db
 def test_guest_xlsx_to_pdf_contains_extracted_text(api_client):
-    response = api_client.post("/api/convert/excel-to-pdf/", {"file": make_xlsx_file()}, format="multipart")
+    response = api_client.post("/api/convert/excel-to-pdf/", {"file": make_xlsx_file(), "allow_text_fallback": "true"}, format="multipart")
     assert response.status_code == 202
     from pdf_web.operations.models import ConversionJob
 
@@ -445,3 +445,16 @@ def test_guest_pptx_to_pdf_contains_extracted_text(api_client):
         output = handle.read()
     assert output.startswith(b"%PDF")
     assert b"Pitch Deck Slide" in output
+
+
+@pytest.mark.django_db
+def test_guest_xlsx_to_pdf_requires_high_fidelity_by_default(api_client, monkeypatch):
+    from pdf_web.operations import services
+
+    monkeypatch.setattr(services, "_convert_excel_with_libreoffice", lambda *_args, **_kwargs: None)
+
+    response = api_client.post("/api/convert/excel-to-pdf/", {"file": make_xlsx_file()}, format="multipart")
+
+    assert response.status_code == 202
+    assert response.data["status"] == "failed"
+    assert "High-fidelity Excel to PDF conversion is unavailable" in str(response.data.get("error"))
