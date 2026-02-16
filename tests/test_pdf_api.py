@@ -55,7 +55,7 @@ def make_xlsx_file(name="sample.xlsx"):
         name,
         {
             "xl/sharedStrings.xml": "<sst><si><t>Revenue</t></si><si><t>Quarterly Sheet</t></si></sst>",
-            "xl/worksheets/sheet1.xml": "<worksheet><sheetData><row><c><v>1</v></c></row></sheetData></worksheet>",
+            "xl/worksheets/sheet1.xml": '<worksheet><sheetData><row><c t="s"><v>0</v></c><c t="s"><v>1</v></c></row></sheetData></worksheet>',
         },
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )

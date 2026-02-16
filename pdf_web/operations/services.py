@@ -6,6 +6,7 @@ from io import BytesIO
 from pathlib import Path
 import re
 import zipfile
+from xml.etree import ElementTree
 
 from django.contrib.auth.hashers import make_password
 from django.core.files.base import ContentFile
@@ -83,34 +84,60 @@ def _minimal_pdf_bytes(text: str) -> bytes:
     return out.getvalue()
 
 
-def _extract_xml_text(xml_data: bytes) -> str:
-    text = re.sub(rb"<[^>]+>", b" ", xml_data)
-    text = re.sub(rb"\s+", b" ", text).strip()
-    return text.decode("utf-8", errors="ignore")
+def _extract_docx_text(xml_data: bytes) -> str:
+    values = re.findall(rb"<w:t[^>]*>(.*?)</w:t>", xml_data, flags=re.DOTALL)
+    return " ".join(v.decode("utf-8", errors="ignore").strip() for v in values if v.strip())
+
+
+def _extract_pptx_text(xml_data: bytes) -> str:
+    values = re.findall(rb"<a:t[^>]*>(.*?)</a:t>", xml_data, flags=re.DOTALL)
+    return " ".join(v.decode("utf-8", errors="ignore").strip() for v in values if v.strip())
+
+
+def _extract_xlsx_text(archive: zipfile.ZipFile) -> str:
+    strings: list[str] = []
+    if "xl/sharedStrings.xml" in archive.namelist():
+        root = ElementTree.fromstring(archive.read("xl/sharedStrings.xml"))
+        for si in root.findall("{*}si"):
+            text_parts = [t.text or "" for t in si.findall(".//{*}t")]
+            strings.append("".join(text_parts).strip())
+
+    values: list[str] = []
+    sheet_paths = [n for n in archive.namelist() if n.startswith("xl/worksheets/") and n.endswith(".xml")]
+    for sheet_path in sorted(sheet_paths)[:12]:
+        root = ElementTree.fromstring(archive.read(sheet_path))
+        for cell in root.findall(".//{*}c"):
+            t_attr = cell.attrib.get("t")
+            v = cell.find("{*}v")
+            if v is None or v.text is None:
+                continue
+            raw = v.text.strip()
+            if not raw:
+                continue
+            if t_attr == "s" and raw.isdigit():
+                idx = int(raw)
+                if 0 <= idx < len(strings):
+                    if strings[idx]:
+                        values.append(strings[idx])
+            else:
+                values.append(raw)
+    return " ".join(values)
 
 
 def _extract_ooxml_text(source_bytes: bytes, source_name: str) -> str:
     try:
         with zipfile.ZipFile(BytesIO(source_bytes)) as archive:
-            candidates: list[str]
-            if source_name.endswith(".docx"):
-                candidates = ["word/document.xml"]
-            elif source_name.endswith(".xlsx"):
-                candidates = [
-                    "xl/sharedStrings.xml",
-                    *[n for n in archive.namelist() if n.startswith("xl/worksheets/") and n.endswith(".xml")],
-                ]
-            elif source_name.endswith(".pptx"):
-                candidates = [n for n in archive.namelist() if n.startswith("ppt/slides/") and n.endswith(".xml")]
-            else:
-                candidates = []
-            fragments: list[str] = []
-            for path in candidates[:12]:
-                if path in archive.namelist():
-                    fragments.append(_extract_xml_text(archive.read(path)))
-            return " ".join(f for f in fragments if f).strip()
+            if source_name.endswith(".docx") and "word/document.xml" in archive.namelist():
+                return _extract_docx_text(archive.read("word/document.xml"))
+            if source_name.endswith(".xlsx"):
+                return _extract_xlsx_text(archive)
+            if source_name.endswith(".pptx"):
+                slides = [n for n in archive.namelist() if n.startswith("ppt/slides/") and n.endswith(".xml")]
+                fragments = [_extract_pptx_text(archive.read(path)) for path in sorted(slides)[:30]]
+                return " ".join(f for f in fragments if f).strip()
     except Exception:  # noqa: BLE001
         return ""
+    return ""
 
 
 def _pdf_from_upload(version: DocumentVersion) -> bytes:
