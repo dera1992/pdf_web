@@ -388,7 +388,7 @@ def test_guest_pdf_to_word_conversion_contains_text_fallback(api_client, monkeyp
 
     response = api_client.post(
         "/api/convert/pdf-to-word/",
-        {"file": make_pdf_file("guest-input.pdf")},
+        {"file": make_pdf_file("guest-input.pdf"), "allow_text_fallback": "true"},
         format="multipart",
     )
     assert response.status_code == 202
@@ -432,7 +432,7 @@ def test_guest_pdf_to_ppt_conversion_contains_text_fallback(api_client, monkeypa
 
     response = api_client.post(
         "/api/convert/pdf-to-ppt/",
-        {"file": make_pdf_file("guest-input.pdf")},
+        {"file": make_pdf_file("guest-input.pdf"), "allow_text_fallback": "true"},
         format="multipart",
     )
     assert response.status_code == 202
@@ -443,6 +443,40 @@ def test_guest_pdf_to_ppt_conversion_contains_text_fallback(api_client, monkeypa
     with zipfile.ZipFile(BytesIO(output)) as archive:
         slide_xml = archive.read("ppt/slides/slide1.xml")
     assert b"Hello" in slide_xml
+
+
+@pytest.mark.django_db
+def test_guest_pdf_to_word_requires_high_fidelity_by_default(api_client, monkeypatch):
+    from pdf_web.operations import services
+
+    monkeypatch.setattr(services, "_convert_pdf_with_libreoffice", lambda *_args, **_kwargs: None)
+
+    response = api_client.post(
+        "/api/convert/pdf-to-word/",
+        {"file": make_pdf_file("guest-input.pdf")},
+        format="multipart",
+    )
+
+    assert response.status_code == 202
+    assert response.data["status"] == "failed"
+    assert "High-fidelity PDF conversion is unavailable" in str(response.data.get("error"))
+
+
+@pytest.mark.django_db
+def test_guest_pdf_to_ppt_requires_high_fidelity_by_default(api_client, monkeypatch):
+    from pdf_web.operations import services
+
+    monkeypatch.setattr(services, "_convert_pdf_with_libreoffice", lambda *_args, **_kwargs: None)
+
+    response = api_client.post(
+        "/api/convert/pdf-to-ppt/",
+        {"file": make_pdf_file("guest-input.pdf")},
+        format="multipart",
+    )
+
+    assert response.status_code == 202
+    assert response.data["status"] == "failed"
+    assert "High-fidelity PDF conversion is unavailable" in str(response.data.get("error"))
 
 
 @pytest.mark.django_db

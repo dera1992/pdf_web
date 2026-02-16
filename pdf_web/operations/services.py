@@ -512,6 +512,7 @@ def create_converted_version(
     base_name = Path(version.file.name).stem if version.file else f"version-{version.id}"
     extension = EXT_BY_TARGET.get(target_format, "bin")
     conversion_params = conversion_params or {}
+    allow_text_fallback = _is_truthy(conversion_params.get("allow_text_fallback"))
     source_bytes = b""
     source_name = ""
     if version.file:
@@ -523,7 +524,7 @@ def create_converted_version(
     if target_format == "pdf":
         output_bytes = _pdf_from_upload(
             version,
-            allow_excel_text_fallback=_is_truthy(conversion_params.get("allow_text_fallback")),
+            allow_excel_text_fallback=allow_text_fallback,
         )
     elif target_format == "jpg" and source_name.endswith(".pdf"):
         try:
@@ -540,6 +541,11 @@ def create_converted_version(
         if converted:
             output_bytes = converted
         else:
+            if target_format in {"word", "ppt"} and not allow_text_fallback:
+                raise RuntimeError(
+                    "High-fidelity PDF conversion is unavailable for this target format. "
+                    "Install LibreOffice/soffice or retry with allow_text_fallback=true."
+                )
             text = _extract_pdf_text(source_bytes)
             if target_format == "word":
                 output_bytes = _docx_from_text(text)
