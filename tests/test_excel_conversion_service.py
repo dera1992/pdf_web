@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from io import BytesIO
 from pathlib import Path
 import subprocess
+import zipfile
 
 from pdf_web.operations import services
 
@@ -133,3 +135,18 @@ def test_convert_pdf_with_libreoffice_retries_plain_extension(monkeypatch):
     assert len(calls) == 2
     assert "xlsx:Calc MS Excel 2007 XML" in calls[0]
     assert "xlsx" in calls[1]
+
+
+def test_docx_from_text_escapes_xml_entities():
+    output = services._docx_from_text("Tom & Jerry <script>\"")
+    with zipfile.ZipFile(BytesIO(output)) as archive:
+        document_xml = archive.read("word/document.xml")
+    assert b"Tom &amp; Jerry &lt;script&gt;\"" in document_xml
+
+
+def test_xlsx_from_text_removes_illegal_xml_chars():
+    output = services._xlsx_from_text("Hello\x00World")
+    with zipfile.ZipFile(BytesIO(output)) as archive:
+        strings_xml = archive.read("xl/sharedStrings.xml")
+    assert b"HelloWorld" in strings_xml
+    assert b"\x00" not in strings_xml

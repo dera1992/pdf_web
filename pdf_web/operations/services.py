@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import tempfile
 import zipfile
+from xml.sax.saxutils import escape
 from xml.etree import ElementTree
 
 from django.contrib.auth.hashers import make_password
@@ -49,6 +50,15 @@ PDF_EXPORT_FILTER_BY_EXT = {
     "xlsx": "xlsx:Calc MS Excel 2007 XML",
     "pptx": "pptx:Impress MS PowerPoint 2007 XML",
 }
+
+
+XML_ILLEGAL_CHARS_RE = re.compile(r"[^\x09\x0A\x0D\x20-\uD7FF\uE000-\uFFFD]")
+
+
+def _xml_safe_text(value: str) -> str:
+    # Remove characters illegal in XML 1.0 and escape special XML entities.
+    cleaned = XML_ILLEGAL_CHARS_RE.sub("", value)
+    return escape(cleaned)
 
 
 def clone_version(version: DocumentVersion, *, created_by=None, processing_state: dict | None = None) -> DocumentVersion:
@@ -317,13 +327,12 @@ def _convert_pdf_with_libreoffice(source_bytes: bytes, *, target_ext: str) -> by
 
 def _docx_from_text(text: str) -> bytes:
     body_text = text or "Converted from PDF"
+    lines = [_xml_safe_text(line) for line in body_text.splitlines()[:80] if line.strip()]
     document_xml = (
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
         "<w:body>"
-        + "".join(
-            f"<w:p><w:r><w:t>{line}</w:t></w:r></w:p>" for line in body_text.splitlines()[:80] if line.strip()
-        )
+        + "".join(f"<w:p><w:r><w:t>{line}</w:t></w:r></w:p>" for line in lines)
         + '<w:sectPr><w:pgSz w:w="12240" w:h="15840"/></w:sectPr></w:body></w:document>'
     )
     content_types = """<?xml version=\"1.0\" encoding=\"UTF-8\"?>
@@ -346,13 +355,16 @@ def _docx_from_text(text: str) -> bytes:
 
 def _xlsx_from_text(text: str) -> bytes:
     lines = [line.strip() for line in text.splitlines() if line.strip()][:120] or ["Converted from PDF"]
-    shared_items = "".join(f"<si><t>{line}</t></si>" for line in lines)
+    safe_lines = [_xml_safe_text(line) for line in lines]
+    shared_items = "".join(f"<si><t>{line}</t></si>" for line in safe_lines)
     shared_strings = (
         '<?xml version="1.0" encoding="UTF-8"?>'
         '<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
-        f'count="{len(lines)}" uniqueCount="{len(lines)}">{shared_items}</sst>'
+        f'count="{len(safe_lines)}" uniqueCount="{len(safe_lines)}">{shared_items}</sst>'
     )
-    rows = "".join(f'<row r="{i+1}"><c r="A{i+1}" t="s"><v>{i}</v></c></row>' for i in range(len(lines)))
+    rows = "".join(
+        f'<row r="{i+1}"><c r="A{i+1}" t="s"><v>{i}</v></c></row>' for i in range(len(safe_lines))
+    )
     sheet_xml = (
         '<?xml version="1.0" encoding="UTF-8"?>'
         '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
@@ -391,7 +403,8 @@ def _xlsx_from_text(text: str) -> bytes:
 
 
 def _pptx_from_text(text: str) -> bytes:
-    slide_text = (text or "Converted from PDF").splitlines()[0][:200]
+    first_line = (text or "Converted from PDF").splitlines()[0][:200]
+    slide_text = _xml_safe_text(first_line)
     content_types = """<?xml version=\"1.0\" encoding=\"UTF-8\"?>
 <Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">
   <Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>
