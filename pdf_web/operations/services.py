@@ -155,13 +155,13 @@ def _extract_ooxml_text(source_bytes: bytes, source_name: str) -> str:
 
 
 
-def _convert_excel_with_libreoffice(source_bytes: bytes, source_name: str) -> bytes | None:
+def _convert_with_libreoffice(source_bytes: bytes, source_name: str, *, export_filter: str, prefix: str) -> bytes | None:
     soffice_bin = shutil.which("soffice") or shutil.which("libreoffice")
     if not soffice_bin:
         return None
 
     suffix = Path(source_name).suffix or ".xlsx"
-    with tempfile.TemporaryDirectory(prefix="excel-to-pdf-") as tmp_dir:
+    with tempfile.TemporaryDirectory(prefix=prefix) as tmp_dir:
         tmp_path = Path(tmp_dir)
         input_path = tmp_path / f"input{suffix}"
         output_path = tmp_path / "input.pdf"
@@ -175,7 +175,7 @@ def _convert_excel_with_libreoffice(source_bytes: bytes, source_name: str) -> by
             "--nodefault",
             "--nofirststartwizard",
             "--convert-to",
-            "pdf:calc_pdf_Export",
+            f"pdf:{export_filter}",
             str(input_path),
             "--outdir",
             str(tmp_path),
@@ -189,6 +189,33 @@ def _convert_excel_with_libreoffice(source_bytes: bytes, source_name: str) -> by
             return None
         pdf_bytes = output_path.read_bytes()
         return pdf_bytes if pdf_bytes.startswith(b"%PDF") else None
+
+
+def _convert_excel_with_libreoffice(source_bytes: bytes, source_name: str) -> bytes | None:
+    return _convert_with_libreoffice(
+        source_bytes,
+        source_name,
+        export_filter="calc_pdf_Export",
+        prefix="excel-to-pdf-",
+    )
+
+
+def _convert_word_with_libreoffice(source_bytes: bytes, source_name: str) -> bytes | None:
+    return _convert_with_libreoffice(
+        source_bytes,
+        source_name,
+        export_filter="writer_pdf_Export",
+        prefix="word-to-pdf-",
+    )
+
+
+def _convert_ppt_with_libreoffice(source_bytes: bytes, source_name: str) -> bytes | None:
+    return _convert_with_libreoffice(
+        source_bytes,
+        source_name,
+        export_filter="impress_pdf_Export",
+        prefix="ppt-to-pdf-",
+    )
 
 def _pdf_from_upload(version: DocumentVersion, *, allow_excel_text_fallback: bool = False) -> bytes:
     if not version.file:
@@ -222,6 +249,16 @@ def _pdf_from_upload(version: DocumentVersion, *, allow_excel_text_fallback: boo
                 "High-fidelity Excel to PDF conversion is unavailable. "
                 "Install LibreOffice/soffice or retry with allow_text_fallback=true."
             )
+
+    if source_name.endswith((".doc", ".docx", ".odt", ".rtf")):
+        converted_pdf = _convert_word_with_libreoffice(source_bytes, source_name)
+        if converted_pdf:
+            return converted_pdf
+
+    if source_name.endswith((".ppt", ".pptx", ".odp")):
+        converted_pdf = _convert_ppt_with_libreoffice(source_bytes, source_name)
+        if converted_pdf:
+            return converted_pdf
 
     ooxml_text = _extract_ooxml_text(source_bytes, source_name)
     if ooxml_text:
