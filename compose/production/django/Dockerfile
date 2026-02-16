@@ -49,6 +49,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   libreoffice-calc \
   libreoffice-writer \
   libreoffice-impress \
+  libreoffice-draw \
   # entrypoint
   wait-for-it \
   # cleaning up unused files

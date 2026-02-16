@@ -148,6 +148,14 @@ class BaseUploadConversionView(APIView):
         )
         document.current_version = version
         document.save(update_fields=["current_version"])
+        params = {k: v for k, v in request.data.items() if not isinstance(v, UploadedFile)}
+        # For upload endpoints, prefer returning a downloadable fallback file over
+        # hard-failing when high-fidelity PDF->Word/PPT conversion is unavailable.
+        if source_mime_type == "pdf" and target_format in {"word", "ppt"}:
+            # Upload conversions should always produce a downloadable artifact
+            # even when LibreOffice high-fidelity conversion is unavailable.
+            params["allow_text_fallback"] = "true"
+
         job = ConversionJob.objects.create(
             workspace=workspace,
             document=document,
@@ -155,7 +163,7 @@ class BaseUploadConversionView(APIView):
             requested_by=created_by,
             target_format=target_format,
             source_mime_type=source_mime_type,
-            params={k: v for k, v in request.data.items() if not isinstance(v, UploadedFile)},
+            params=params,
         )
         # Run once inline to support immediate preview UX, then return serializer contract.
         process_conversion_job(job.id)

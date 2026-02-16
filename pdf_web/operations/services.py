@@ -276,6 +276,7 @@ def _convert_pdf_with_libreoffice(source_bytes: bytes, *, target_ext: str) -> by
         command = [
             soffice_bin,
             "--headless",
+            "--invisible",
             "--nologo",
             "--nolockcheck",
             "--nodefault",
@@ -291,6 +292,8 @@ def _convert_pdf_with_libreoffice(source_bytes: bytes, *, target_ext: str) -> by
         if target_ext in PDF_EXPORT_FILTER_BY_EXT:
             # Retry with explicit filter because some builds require it.
             retry_commands.append([*command[:7], PDF_EXPORT_FILTER_BY_EXT[target_ext], *command[8:]])
+        # Retry without filter/options flags for conservative compatibility.
+        retry_commands.append([soffice_bin, "--headless", "--convert-to", target_ext, str(input_path), "--outdir", str(tmp_path)])
 
         try:
             completed = subprocess.run(command, check=True, capture_output=True, timeout=150)
