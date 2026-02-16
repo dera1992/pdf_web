@@ -386,6 +386,7 @@ REST_FRAMEWORK = {
     ),
     "DEFAULT_THROTTLE_RATES": {
         "auth": "10/min",
+        "conversion": "20/hour",
     },
 }
 
