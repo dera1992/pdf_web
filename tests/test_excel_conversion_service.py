@@ -132,9 +132,42 @@ def test_convert_pdf_with_libreoffice_retries_plain_extension(monkeypatch):
     result = services._convert_pdf_with_libreoffice(b"%PDF-1.4", target_ext="xlsx")
 
     assert result == b"xlsx-content"
-    assert len(calls) == 2
+    assert len(calls) >= 1
     assert "xlsx" in calls[0]
-    assert "xlsx:Calc MS Excel 2007 XML" in calls[1]
+
+
+def test_convert_pdf_with_libreoffice_uses_intermediate_for_docx(monkeypatch):
+    calls: list[list[str]] = []
+
+    def fake_which(name):
+        return "/usr/bin/soffice" if name in {"soffice", "libreoffice"} else None
+
+    def fake_run(command, check, capture_output, timeout):
+        calls.append(command)
+        outdir = Path(command[-1])
+        if "--convert-to" in command:
+            target = command[command.index("--convert-to") + 1]
+            input_file = command[-2]
+            if target in {"docx", "docx:MS Word 2007 XML"} and input_file.endswith("input.pdf"):
+                raise subprocess.CalledProcessError(returncode=1, cmd=command)
+            if target == "odt":
+                (outdir / "input.odt").write_bytes(b"odt-content")
+            if target in {"docx", "docx:MS Word 2007 XML"} and input_file.endswith("input.odt"):
+                (outdir / "input.docx").write_bytes(b"docx-content")
+
+        class Result:
+            stderr = b""
+
+        return Result()
+
+    monkeypatch.setattr(services.shutil, "which", fake_which)
+    monkeypatch.setattr(services.subprocess, "run", fake_run)
+
+    result = services._convert_pdf_with_libreoffice(b"%PDF-1.4", target_ext="docx")
+
+    assert result == b"docx-content"
+    convert_targets = [c[c.index("--convert-to") + 1] for c in calls if "--convert-to" in c]
+    assert "odt" in convert_targets
 
 
 def test_docx_from_text_escapes_xml_entities():

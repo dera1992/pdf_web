@@ -265,54 +265,86 @@ def _convert_pdf_with_libreoffice(source_bytes: bytes, *, target_ext: str) -> by
 
     with tempfile.TemporaryDirectory(prefix=f"pdf-to-{target_ext}-") as tmp_dir:
         tmp_path = Path(tmp_dir)
+        profile_path = tmp_path / "lo-profile"
+        profile_uri = profile_path.resolve().as_uri()
         input_path = tmp_path / "input.pdf"
         output_path = tmp_path / f"input.{target_ext}"
         input_path.write_bytes(source_bytes)
 
-        # Prefer plain extension first: it is generally more compatible across
-        # LibreOffice builds for PDF imports.
-        convert_to_arg = target_ext
-
-        command = [
+        base_args = [
             soffice_bin,
+            f"-env:UserInstallation={profile_uri}",
             "--headless",
             "--invisible",
             "--nologo",
             "--nolockcheck",
             "--nodefault",
             "--nofirststartwizard",
-            "--convert-to",
-            convert_to_arg,
-            str(input_path),
-            "--outdir",
-            str(tmp_path),
         ]
 
-        retry_commands: list[list[str]] = []
+        direct_attempts = [target_ext]
         if target_ext in PDF_EXPORT_FILTER_BY_EXT:
-            # Retry with explicit filter because some builds require it.
-            retry_commands.append([*command[:7], PDF_EXPORT_FILTER_BY_EXT[target_ext], *command[8:]])
-        # Retry without filter/options flags for conservative compatibility.
-        retry_commands.append([soffice_bin, "--headless", "--convert-to", target_ext, str(input_path), "--outdir", str(tmp_path)])
+            direct_attempts.append(PDF_EXPORT_FILTER_BY_EXT[target_ext])
 
-        try:
-            completed = subprocess.run(command, check=True, capture_output=True, timeout=150)
-            if completed.stderr:
-                logger.debug(
-                    "LibreOffice PDF->%s stderr: %s",
-                    target_ext,
-                    completed.stderr.decode("utf-8", errors="ignore"),
-                )
-        except (subprocess.SubprocessError, OSError) as exc:
-            logger.warning("LibreOffice PDF->%s conversion failed: %s", target_ext, exc)
-            for retry_command in retry_commands:
-                try:
-                    subprocess.run(retry_command, check=True, capture_output=True, timeout=150)
-                    break
-                except (subprocess.SubprocessError, OSError) as retry_exc:
-                    logger.warning("LibreOffice retry PDF->%s failed: %s", target_ext, retry_exc)
-            else:
-                return None
+        converted = False
+        for convert_to_arg in direct_attempts:
+            command = [*base_args, "--convert-to", convert_to_arg, str(input_path), "--outdir", str(tmp_path)]
+            try:
+                completed = subprocess.run(command, check=True, capture_output=True, timeout=180)
+                if completed.stderr:
+                    logger.debug(
+                        "LibreOffice PDF->%s (%s) stderr: %s",
+                        target_ext,
+                        convert_to_arg,
+                        completed.stderr.decode("utf-8", errors="ignore"),
+                    )
+                converted = True
+                break
+            except (subprocess.SubprocessError, OSError) as exc:
+                logger.warning("LibreOffice PDF->%s attempt (%s) failed: %s", target_ext, convert_to_arg, exc)
+
+        if not converted and target_ext in {"docx", "pptx"}:
+            intermediate_ext = "odt" if target_ext == "docx" else "odp"
+            intermediate_path = tmp_path / f"input.{intermediate_ext}"
+            step1 = [*base_args, "--convert-to", intermediate_ext, str(input_path), "--outdir", str(tmp_path)]
+            try:
+                subprocess.run(step1, check=True, capture_output=True, timeout=180)
+                if intermediate_path.exists() and intermediate_path.stat().st_size > 0:
+                    step2_variants = [target_ext]
+                    if target_ext in PDF_EXPORT_FILTER_BY_EXT:
+                        step2_variants.append(PDF_EXPORT_FILTER_BY_EXT[target_ext])
+                    for step2_arg in step2_variants:
+                        step2 = [*base_args, "--convert-to", step2_arg, str(intermediate_path), "--outdir", str(tmp_path)]
+                        try:
+                            subprocess.run(step2, check=True, capture_output=True, timeout=180)
+                            converted = True
+                            break
+                        except (subprocess.SubprocessError, OSError) as step2_exc:
+                            logger.warning(
+                                "LibreOffice %s->%s step2 (%s) failed: %s",
+                                intermediate_ext,
+                                target_ext,
+                                step2_arg,
+                                step2_exc,
+                            )
+            except (subprocess.SubprocessError, OSError) as step1_exc:
+                logger.warning("LibreOffice PDF->%s intermediate step failed: %s", intermediate_ext, step1_exc)
+
+        if not converted:
+            # Final conservative attempt for distro-specific behavior.
+            fallback_command = [
+                soffice_bin,
+                "--headless",
+                "--convert-to",
+                target_ext,
+                str(input_path),
+                "--outdir",
+                str(tmp_path),
+            ]
+            try:
+                subprocess.run(fallback_command, check=True, capture_output=True, timeout=180)
+            except (subprocess.SubprocessError, OSError) as fallback_exc:
+                logger.warning("LibreOffice final PDF->%s fallback failed: %s", target_ext, fallback_exc)
 
         if not output_path.exists():
             # Some soffice builds write uppercase extensions.
