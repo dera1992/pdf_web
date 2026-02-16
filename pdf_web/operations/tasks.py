@@ -7,6 +7,7 @@ from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from django.utils import timezone
 
+from pdf_web.documents.tasks import render_page_images
 from pdf_web.operations.models import ConversionJob
 from pdf_web.operations.models import CropJob
 from pdf_web.operations.models import OperationJob
@@ -63,6 +64,10 @@ def process_conversion_job(self, job_id: int) -> int:
     _notify_workspace(job.workspace_id, {"job_id": job.id, "status": job.status, "progress": job.progress, "result_url": None})
     try:
         output = create_converted_version(job.version, target_format=job.target_format, created_by=job.requested_by)
+        if output.file and output.file.name.lower().endswith(".pdf"):
+            # Generate page assets immediately so document review screens can render
+            # the converted file right away instead of waiting on a separate queue.
+            render_page_images(output.id)
         job.result_version = output
         job.status = "completed"
         job.progress = 100
