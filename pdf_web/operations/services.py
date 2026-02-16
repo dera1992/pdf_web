@@ -269,7 +269,9 @@ def _convert_pdf_with_libreoffice(source_bytes: bytes, *, target_ext: str) -> by
         output_path = tmp_path / f"input.{target_ext}"
         input_path.write_bytes(source_bytes)
 
-        convert_to_arg = PDF_EXPORT_FILTER_BY_EXT.get(target_ext, target_ext)
+        # Prefer plain extension first: it is generally more compatible across
+        # LibreOffice builds for PDF imports.
+        convert_to_arg = target_ext
 
         command = [
             soffice_bin,
@@ -287,8 +289,8 @@ def _convert_pdf_with_libreoffice(source_bytes: bytes, *, target_ext: str) -> by
 
         retry_commands: list[list[str]] = []
         if target_ext in PDF_EXPORT_FILTER_BY_EXT:
-            # Retry with plain extension because filter names can vary by distro/build.
-            retry_commands.append([*command[:7], target_ext, *command[8:]])
+            # Retry with explicit filter because some builds require it.
+            retry_commands.append([*command[:7], PDF_EXPORT_FILTER_BY_EXT[target_ext], *command[8:]])
 
         try:
             completed = subprocess.run(command, check=True, capture_output=True, timeout=150)

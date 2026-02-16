@@ -77,6 +77,11 @@ export const ToolDetailPage = () => {
         const form = new FormData()
         if (workspaceId) form.append('workspace', workspaceId)
         if (file) form.append('file', file)
+        const body = payloadText.trim() ? JSON.parse(payloadText) : {}
+        Object.entries(body).forEach(([key, value]) => {
+          if (value === undefined || value === null || key === 'file' || key === 'workspace') return
+          form.append(key, String(value))
+        })
         result = await apiClient.post(url, form)
       } else {
         const body = payloadText.trim() ? JSON.parse(payloadText) : {}
@@ -92,7 +97,8 @@ export const ToolDetailPage = () => {
     }
   }
 
-  const previewUrl = responseData?.preview_url || responseData?.result_url
+  const previewUrl = responseData?.preview_url
+  const downloadUrl = responseData?.result_url
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-10 lg:px-6">
@@ -144,33 +150,46 @@ export const ToolDetailPage = () => {
           )}
 
           {tool.needsFileUpload ? (
-            <div>
-              <label className="mb-1 block text-sm font-medium">Upload file</label>
-              <label
-                htmlFor="tool-upload"
-                onDrop={setDroppedFile}
-                onDragOver={(event) => {
-                  event.preventDefault()
-                  setIsDragging(true)
-                }}
-                onDragLeave={() => setIsDragging(false)}
-                className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-8 text-center transition ${
-                  isDragging
-                    ? 'border-accent-500 bg-accent-50 dark:bg-surface-800'
-                    : 'border-surface-300 bg-surface-50 dark:border-surface-700 dark:bg-surface-900'
-                }`}
-              >
-                <span className="text-sm font-semibold">Drag and drop your file here</span>
-                <span className="mt-1 text-xs text-surface-500">or click to browse</span>
-                {file && <span className="mt-3 text-xs text-accent-700 dark:text-accent-300">Selected: {file.name}</span>}
-              </label>
-              <input
-                id="tool-upload"
-                type="file"
-                required
-                onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-                className="hidden"
-              />
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium">Upload file</label>
+                <label
+                  htmlFor="tool-upload"
+                  onDrop={setDroppedFile}
+                  onDragOver={(event) => {
+                    event.preventDefault()
+                    setIsDragging(true)
+                  }}
+                  onDragLeave={() => setIsDragging(false)}
+                  className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-8 text-center transition ${
+                    isDragging
+                      ? 'border-accent-500 bg-accent-50 dark:bg-surface-800'
+                      : 'border-surface-300 bg-surface-50 dark:border-surface-700 dark:bg-surface-900'
+                  }`}
+                >
+                  <span className="text-sm font-semibold">Drag and drop your file here</span>
+                  <span className="mt-1 text-xs text-surface-500">or click to browse</span>
+                  {file && <span className="mt-3 text-xs text-accent-700 dark:text-accent-300">Selected: {file.name}</span>}
+                </label>
+                <input
+                  id="tool-upload"
+                  type="file"
+                  required
+                  onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+                  className="hidden"
+                />
+              </div>
+
+              {tool.payloadHint && (
+                <div>
+                  <label className="mb-1 block text-sm font-medium">Optional JSON payload</label>
+                  <textarea
+                    value={payloadText}
+                    onChange={(event) => setPayloadText(event.target.value)}
+                    className="h-24 w-full rounded-lg border border-surface-300 px-3 py-2 font-mono text-xs dark:border-surface-700 dark:bg-surface-900"
+                  />
+                </div>
+              )}
             </div>
           ) : tool.method === 'POST' ? (
             <div>
@@ -195,7 +214,7 @@ export const ToolDetailPage = () => {
 
       {(uploadedPreviewUrl || previewUrl) && (
         <div className="mt-6 grid grid-cols-12 gap-4">
-          <Card className="col-span-12 p-4 lg:col-span-7">
+          <Card className={`col-span-12 p-4 ${previewUrl ? 'lg:col-span-7' : ''}`}>
             <h2 className="mb-2 text-lg font-semibold">Uploaded document</h2>
             {uploadedPreviewUrl ? (
               <iframe
@@ -207,31 +226,48 @@ export const ToolDetailPage = () => {
               <p className="text-sm text-surface-500">Preview not available for this upload type.</p>
             )}
           </Card>
-          <Card className="col-span-12 p-4 lg:col-span-5">
-            <div className="mb-2 flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Converted preview</h2>
-              {responseData?.result_url && (
-                <a
-                  href={responseData.result_url as string}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-sm font-semibold text-accent-600 hover:text-accent-700"
-                >
-                  Download
-                </a>
-              )}
-            </div>
-            {previewUrl ? (
+          {previewUrl && (
+            <Card className="col-span-12 p-4 lg:col-span-5">
+              <div className="mb-2 flex items-center justify-between">
+                <h2 className="text-lg font-semibold">Converted preview</h2>
+                {downloadUrl && (
+                  <a
+                    href={downloadUrl as string}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-sm font-semibold text-accent-600 hover:text-accent-700"
+                  >
+                    Download
+                  </a>
+                )}
+              </div>
               <iframe
                 title="Conversion preview"
                 src={previewUrl as string}
                 className="h-[640px] w-full rounded-lg border border-surface-200 dark:border-surface-700"
               />
-            ) : (
-              <p className="text-sm text-surface-500">Converted preview not available yet.</p>
-            )}
-          </Card>
+            </Card>
+          )}
         </div>
+      )}
+
+      {!previewUrl && downloadUrl && (
+        <Card className="mt-6 p-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Converted file</h2>
+            <a
+              href={downloadUrl as string}
+              target="_blank"
+              rel="noreferrer"
+              className="text-sm font-semibold text-accent-600 hover:text-accent-700"
+            >
+              Download converted file
+            </a>
+          </div>
+          <p className="mt-2 text-sm text-surface-500">
+            This format cannot be previewed in-browser. Use download to open it in a compatible application.
+          </p>
+        </Card>
       )}
 
       {(response || error) && (

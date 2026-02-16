@@ -105,7 +105,7 @@ def test_convert_pdf_with_libreoffice_uses_filter_for_docx(monkeypatch):
     result = services._convert_pdf_with_libreoffice(b"%PDF-1.4", target_ext="docx")
 
     assert result == b"docx-content"
-    assert "docx:MS Word 2007 XML" in captured["command"]
+    assert "docx" in captured["command"]
 
 
 def test_convert_pdf_with_libreoffice_retries_plain_extension(monkeypatch):
@@ -117,7 +117,7 @@ def test_convert_pdf_with_libreoffice_retries_plain_extension(monkeypatch):
     def fake_run(command, check, capture_output, timeout):
         calls.append(command)
         outdir = Path(command[-1])
-        if "xlsx:Calc MS Excel 2007 XML" in command:
+        if "xlsx" in command and "xlsx:Calc MS Excel 2007 XML" not in command:
             raise subprocess.CalledProcessError(returncode=1, cmd=command)
         (outdir / "input.xlsx").write_bytes(b"xlsx-content")
 
@@ -133,8 +133,8 @@ def test_convert_pdf_with_libreoffice_retries_plain_extension(monkeypatch):
 
     assert result == b"xlsx-content"
     assert len(calls) == 2
-    assert "xlsx:Calc MS Excel 2007 XML" in calls[0]
-    assert "xlsx" in calls[1]
+    assert "xlsx" in calls[0]
+    assert "xlsx:Calc MS Excel 2007 XML" in calls[1]
 
 
 def test_docx_from_text_escapes_xml_entities():
