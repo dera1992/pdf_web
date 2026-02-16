@@ -1,22 +1,5 @@
 import { Link } from 'react-router-dom'
-
-type ToolLink = {
-  name: string
-  description: string
-  href: string
-}
-
-const tools: ToolLink[] = [
-  { name: 'PDF Viewer', description: 'Open, zoom, and search pages instantly.', href: '/docs' },
-  { name: 'Annotations', description: 'Highlight, comment, and collaborate.', href: '/docs' },
-  { name: 'Editor', description: 'Reorder, rotate, and edit content.', href: '/docs' },
-  { name: 'Convert', description: 'Export to DOCX, PNG, or CSV.', href: '/docs' },
-  { name: 'OCR', description: 'Turn scans into searchable text.', href: '/docs' },
-  { name: 'AI Assistant', description: 'Summaries, chat, and redaction.', href: '/docs' },
-  { name: 'Security', description: 'Permissions, watermarking, audit logs.', href: '/docs' },
-  { name: 'Signatures', description: 'Collect approvals securely.', href: '/docs' },
-  { name: 'Automation', description: 'Batch workflows and templates.', href: '/docs' }
-]
+import { PDF_TOOLS } from '../../data/pdfTools'
 
 export const ToolDirectory = () => (
   <section id="tools" className="bg-white py-20 dark:bg-surface-900">
@@ -28,19 +11,19 @@ export const ToolDirectory = () => (
             Every tool you need, one workspace
           </h2>
           <p className="mt-2 text-surface-600 dark:text-surface-300">
-            Click any tool to jump into the workflow and learn how it works.
+            Open any tool page to run that function directly.
           </p>
         </div>
-        <Link to="/docs" className="text-sm font-semibold text-accent-600 hover:text-accent-700">
-          Explore documentation
+        <Link to="/tools" className="text-sm font-semibold text-accent-600 hover:text-accent-700">
+          Browse all tools
         </Link>
       </div>
 
       <div className="mt-10 grid gap-4 md:grid-cols-3">
-        {tools.map((tool) => (
+        {PDF_TOOLS.map((tool) => (
           <Link
-            key={tool.name}
-            to={tool.href}
+            key={tool.id}
+            to={tool.route}
             className="rounded-2xl border border-surface-200 bg-surface-50 p-5 transition hover:border-accent-200 hover:bg-white dark:border-surface-800 dark:bg-surface-800 dark:hover:border-accent-600/40"
           >
             <div className="flex items-center justify-between">

@@ -1,4 +1,6 @@
+from io import BytesIO
 import pytest
+from PIL import Image
 from django.core.files.uploadedfile import SimpleUploadedFile
 from rest_framework.test import APIClient
 
@@ -22,6 +24,12 @@ def make_pdf_file(name="sample.pdf"):
     return SimpleUploadedFile(name, pdf_bytes, content_type="application/pdf")
 
 
+
+
+def make_jpg_file(name="sample.jpg"):
+    buf = BytesIO()
+    Image.new("RGB", (200, 100), color=(52, 120, 220)).save(buf, format="JPEG")
+    return SimpleUploadedFile(name, buf.getvalue(), content_type="image/jpeg")
 @pytest.fixture
 def workspace(user):
     workspace = Workspace.objects.create(name="Acme", owner=user)
@@ -268,3 +276,96 @@ def test_audit_list_filters(api_client, user, workspace):
     response = api_client.get(f"/api/audit/?document_id={document.id}&action=document.download")
     assert response.status_code == 200
     assert response.data
+
+
+@pytest.mark.django_db
+def test_new_pdf_tool_endpoints_and_share(api_client, user, workspace):
+    document, version = create_document(workspace, user)
+    api_client.force_authenticate(user=user)
+
+    response = api_client.post(
+        f"/api/versions/{version.id}/edit-text/",
+        {"text_content": "Updated", "layout_json": {"1": [{"text": "Updated"}]}} ,
+        format="json",
+    )
+    assert response.status_code == 201
+
+    response = api_client.post(f"/api/versions/{version.id}/number-pages/", {"start_number": 1}, format="json")
+    assert response.status_code == 200
+    assert "id" in response.data
+
+    response = api_client.post(
+        f"/api/versions/{version.id}/share/",
+        {"expires_in_hours": 24, "password": "s3cret"},
+        format="json",
+    )
+    assert response.status_code == 201
+    assert response.data["token"]
+
+
+@pytest.mark.django_db
+def test_conversion_endpoints_return_async_contract(api_client, user, workspace):
+    document, version = create_document(workspace, user)
+    api_client.force_authenticate(user=user)
+
+    response = api_client.post(f"/api/versions/{version.id}/convert/word/", {}, format="json")
+    assert response.status_code == 200
+    assert {"id", "status", "progress", "result_url"}.issubset(set(response.data.keys()))
+
+    payload = {"workspace": workspace.id, "file": make_pdf_file("from-doc.pdf")}
+    response = api_client.post("/api/convert/word-to-pdf/", payload, format="multipart")
+    assert response.status_code == 202
+    assert {"id", "status", "progress", "result_url"}.issubset(set(response.data.keys()))
+
+
+@pytest.mark.django_db
+def test_guest_convert_to_pdf_supports_preview(api_client):
+    response = api_client.post(
+        "/api/convert/word-to-pdf/",
+        {"file": make_pdf_file("guest-input.docx")},
+        format="multipart",
+    )
+    assert response.status_code == 202
+    assert "result_url" in response.data
+    assert "preview_url" in response.data
+
+
+@pytest.mark.django_db
+def test_guest_pdf_to_ppt_conversion_upload_contract(api_client):
+    response = api_client.post(
+        "/api/convert/pdf-to-ppt/",
+        {"file": make_pdf_file("guest-input.pdf")},
+        format="multipart",
+    )
+    assert response.status_code == 202
+    assert {"id", "status", "progress", "result_url", "preview_url"}.issubset(set(response.data.keys()))
+    assert str(response.data["result_url"]).lower().endswith(".pptx")
+
+
+@pytest.mark.django_db
+def test_guest_excel_to_pdf_conversion_upload_contract(api_client):
+    response = api_client.post(
+        "/api/convert/excel-to-pdf/",
+        {"file": make_pdf_file("guest-input.xlsx")},
+        format="multipart",
+    )
+    assert response.status_code == 202
+    assert {"id", "status", "progress", "result_url", "preview_url"}.issubset(set(response.data.keys()))
+    assert str(response.data["result_url"]).lower().endswith(".pdf")
+    assert str(response.data["preview_url"]).lower().endswith(".pdf")
+
+
+@pytest.mark.django_db
+def test_guest_jpg_to_pdf_generates_real_pdf(api_client):
+    response = api_client.post(
+        "/api/convert/jpg-to-pdf/",
+        {"file": make_jpg_file("chart.jpg")},
+        format="multipart",
+    )
+    assert response.status_code == 202
+    from pdf_web.operations.models import ConversionJob
+
+    job = ConversionJob.objects.get(id=response.data["id"])
+    assert str(job.result_version.file.name).lower().endswith(".pdf")
+    with job.result_version.file.open("rb") as handle:
+        assert handle.read(4) == b"%PDF"
