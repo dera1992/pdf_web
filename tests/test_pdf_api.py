@@ -446,7 +446,7 @@ def test_guest_pdf_to_ppt_conversion_contains_text_fallback(api_client, monkeypa
 
 
 @pytest.mark.django_db
-def test_guest_pdf_to_word_upload_defaults_to_fallback(api_client, monkeypatch):
+def test_guest_pdf_to_word_upload_requires_high_fidelity_by_default(api_client, monkeypatch):
     from pdf_web.operations import services
 
     monkeypatch.setattr(services, "_convert_pdf_with_libreoffice", lambda *_args, **_kwargs: None)
@@ -458,12 +458,12 @@ def test_guest_pdf_to_word_upload_defaults_to_fallback(api_client, monkeypatch):
     )
 
     assert response.status_code == 202
-    assert response.data["status"] == "completed"
-    assert str(response.data["result_url"]).lower().endswith(".docx")
+    assert response.data["status"] == "failed"
+    assert "High-fidelity PDF conversion is unavailable" in str(response.data.get("error"))
 
 
 @pytest.mark.django_db
-def test_guest_pdf_to_ppt_upload_defaults_to_fallback(api_client, monkeypatch):
+def test_guest_pdf_to_ppt_upload_requires_high_fidelity_by_default(api_client, monkeypatch):
     from pdf_web.operations import services
 
     monkeypatch.setattr(services, "_convert_pdf_with_libreoffice", lambda *_args, **_kwargs: None)
@@ -475,12 +475,12 @@ def test_guest_pdf_to_ppt_upload_defaults_to_fallback(api_client, monkeypatch):
     )
 
     assert response.status_code == 202
-    assert response.data["status"] == "completed"
-    assert str(response.data["result_url"]).lower().endswith(".pptx")
+    assert response.data["status"] == "failed"
+    assert "High-fidelity PDF conversion is unavailable" in str(response.data.get("error"))
 
 
 @pytest.mark.django_db
-def test_guest_pdf_to_word_upload_forces_fallback_even_when_disabled(api_client, monkeypatch):
+def test_guest_pdf_to_word_can_disable_fallback(api_client, monkeypatch):
     from pdf_web.operations import services
 
     monkeypatch.setattr(services, "_convert_pdf_with_libreoffice", lambda *_args, **_kwargs: None)
@@ -492,8 +492,8 @@ def test_guest_pdf_to_word_upload_forces_fallback_even_when_disabled(api_client,
     )
 
     assert response.status_code == 202
-    assert response.data["status"] == "completed"
-    assert str(response.data["result_url"]).lower().endswith(".docx")
+    assert response.data["status"] == "failed"
+    assert "High-fidelity PDF conversion is unavailable" in str(response.data.get("error"))
 
 
 @pytest.mark.django_db

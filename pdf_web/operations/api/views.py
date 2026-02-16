@@ -152,9 +152,10 @@ class BaseUploadConversionView(APIView):
         # For upload endpoints, prefer returning a downloadable fallback file over
         # hard-failing when high-fidelity PDF->Word/PPT conversion is unavailable.
         if source_mime_type == "pdf" and target_format in {"word", "ppt"}:
-            # Upload conversions should always produce a downloadable artifact
-            # even when LibreOffice high-fidelity conversion is unavailable.
-            params["allow_text_fallback"] = "true"
+            # Preserve visual fidelity by default for PDF->Word/PPT uploads.
+            # Clients can explicitly opt in to text fallback using
+            # allow_text_fallback=true.
+            params.setdefault("allow_text_fallback", "false")
 
         job = ConversionJob.objects.create(
             workspace=workspace,
