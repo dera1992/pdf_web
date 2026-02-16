@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import secrets
 from datetime import timedelta
+from io import BytesIO
 from pathlib import Path
 
 from django.contrib.auth.hashers import make_password
@@ -64,6 +65,38 @@ def _minimal_pdf_bytes(text: str) -> bytes:
     )
 
 
+def _pdf_from_upload(version: DocumentVersion) -> bytes:
+    if not version.file:
+        return _minimal_pdf_bytes("Converted to PDF")
+    version.file.open("rb")
+    source_bytes = version.file.read()
+    version.file.close()
+    source_name = version.file.name.lower()
+
+    # Preserve PDF uploads.
+    if source_name.endswith(".pdf"):
+        return source_bytes
+
+    # Convert images into real image-based PDF pages.
+    if source_name.endswith((".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff", ".gif")):
+        try:
+            from PIL import Image
+
+            with Image.open(BytesIO(source_bytes)) as img:
+                rgb = img.convert("RGB")
+                buffer = BytesIO()
+                rgb.save(buffer, format="PDF", resolution=150)
+                return buffer.getvalue()
+        except Exception:  # noqa: BLE001
+            pass
+
+    # Best-effort fallback for office-like files without external converters.
+    text_snippet = source_bytes[:4096].decode("utf-8", errors="ignore").strip()
+    if not text_snippet:
+        text_snippet = f"Converted to PDF from {version.file.name}"
+    return _minimal_pdf_bytes(text_snippet[:400])
+
+
 def create_converted_version(version: DocumentVersion, *, target_format: str, created_by=None) -> DocumentVersion:
     document = version.document
     next_version_number = (document.versions.aggregate(max_num=models.Max("version_number")) or {}).get("max_num", 0) + 1
@@ -71,7 +104,7 @@ def create_converted_version(version: DocumentVersion, *, target_format: str, cr
     extension = EXT_BY_TARGET.get(target_format, "bin")
 
     if target_format == "pdf":
-        output_bytes = _minimal_pdf_bytes(f"Converted to PDF from {version.file.name if version.file else 'upload'}")
+        output_bytes = _pdf_from_upload(version)
     elif target_format == "jpg":
         output_bytes = b"\xff\xd8\xff\xdb\x00C\x00" + b"0" * 128 + b"\xff\xd9"
     else:

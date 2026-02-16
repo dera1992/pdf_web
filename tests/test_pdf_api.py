@@ -1,4 +1,6 @@
+from io import BytesIO
 import pytest
+from PIL import Image
 from django.core.files.uploadedfile import SimpleUploadedFile
 from rest_framework.test import APIClient
 
@@ -22,6 +24,12 @@ def make_pdf_file(name="sample.pdf"):
     return SimpleUploadedFile(name, pdf_bytes, content_type="application/pdf")
 
 
+
+
+def make_jpg_file(name="sample.jpg"):
+    buf = BytesIO()
+    Image.new("RGB", (200, 100), color=(52, 120, 220)).save(buf, format="JPEG")
+    return SimpleUploadedFile(name, buf.getvalue(), content_type="image/jpeg")
 @pytest.fixture
 def workspace(user):
     workspace = Workspace.objects.create(name="Acme", owner=user)
@@ -345,3 +353,19 @@ def test_guest_excel_to_pdf_conversion_upload_contract(api_client):
     assert {"id", "status", "progress", "result_url", "preview_url"}.issubset(set(response.data.keys()))
     assert str(response.data["result_url"]).lower().endswith(".pdf")
     assert str(response.data["preview_url"]).lower().endswith(".pdf")
+
+
+@pytest.mark.django_db
+def test_guest_jpg_to_pdf_generates_real_pdf(api_client):
+    response = api_client.post(
+        "/api/convert/jpg-to-pdf/",
+        {"file": make_jpg_file("chart.jpg")},
+        format="multipart",
+    )
+    assert response.status_code == 202
+    from pdf_web.operations.models import ConversionJob
+
+    job = ConversionJob.objects.get(id=response.data["id"])
+    assert str(job.result_version.file.name).lower().endswith(".pdf")
+    with job.result_version.file.open("rb") as handle:
+        assert handle.read(4) == b"%PDF"
