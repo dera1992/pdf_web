@@ -178,7 +178,6 @@ export const PDF_TOOLS: ToolDefinition[] = [
     route: '/tools/word-to-pdf',
     endpoint: '/api/convert/word-to-pdf/',
     method: 'POST',
-    needsWorkspaceId: true,
     needsFileUpload: true
   },
   {
@@ -189,7 +188,6 @@ export const PDF_TOOLS: ToolDefinition[] = [
     route: '/tools/excel-to-pdf',
     endpoint: '/api/convert/excel-to-pdf/',
     method: 'POST',
-    needsWorkspaceId: true,
     needsFileUpload: true
   },
   {
@@ -200,7 +198,6 @@ export const PDF_TOOLS: ToolDefinition[] = [
     route: '/tools/ppt-to-pdf',
     endpoint: '/api/convert/ppt-to-pdf/',
     method: 'POST',
-    needsWorkspaceId: true,
     needsFileUpload: true
   },
   {
@@ -211,7 +208,6 @@ export const PDF_TOOLS: ToolDefinition[] = [
     route: '/tools/jpg-to-pdf',
     endpoint: '/api/convert/jpg-to-pdf/',
     method: 'POST',
-    needsWorkspaceId: true,
     needsFileUpload: true
   },
   {

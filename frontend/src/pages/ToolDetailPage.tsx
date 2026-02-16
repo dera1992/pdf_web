@@ -1,8 +1,14 @@
-import { FormEvent, useMemo, useState } from 'react'
+import { DragEvent, FormEvent, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import apiClient from '../api/client'
 import { Card } from '../components/ui/Card'
 import { getToolById } from '../data/pdfTools'
+
+type ToolRunResponse = {
+  result_url?: string | null
+  preview_url?: string | null
+  [key: string]: unknown
+}
 
 export const ToolDetailPage = () => {
   const { toolId } = useParams<{ toolId: string }>()
@@ -11,8 +17,10 @@ export const ToolDetailPage = () => {
   const [workspaceId, setWorkspaceId] = useState('')
   const [payloadText, setPayloadText] = useState(tool?.payloadHint ?? '{}')
   const [file, setFile] = useState<File | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
   const [loading, setLoading] = useState(false)
   const [response, setResponse] = useState<string>('')
+  const [responseData, setResponseData] = useState<ToolRunResponse | null>(null)
   const [error, setError] = useState<string>('')
 
   if (!tool) {
@@ -28,11 +36,21 @@ export const ToolDetailPage = () => {
 
   const endpoint = tool.endpoint.replace('{versionId}', versionId || ':versionId')
 
+  const setDroppedFile = (event: DragEvent<HTMLLabelElement>) => {
+    event.preventDefault()
+    setIsDragging(false)
+    const droppedFile = event.dataTransfer.files?.[0]
+    if (droppedFile) {
+      setFile(droppedFile)
+    }
+  }
+
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault()
     setLoading(true)
     setError('')
     setResponse('')
+    setResponseData(null)
     try {
       const url = tool.endpoint.replace('{versionId}', versionId)
       let result
@@ -47,6 +65,7 @@ export const ToolDetailPage = () => {
         const body = payloadText.trim() ? JSON.parse(payloadText) : {}
         result = await apiClient.post(url, body)
       }
+      setResponseData(result.data as ToolRunResponse)
       setResponse(JSON.stringify(result.data, null, 2))
     } catch (submitError: unknown) {
       const message = submitError instanceof Error ? submitError.message : 'Request failed.'
@@ -55,6 +74,8 @@ export const ToolDetailPage = () => {
       setLoading(false)
     }
   }
+
+  const previewUrl = responseData?.preview_url || responseData?.result_url
 
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-10 lg:px-6">
@@ -67,14 +88,16 @@ export const ToolDetailPage = () => {
       </div>
 
       <Card className="p-6">
-        <div className="mb-4 rounded-lg bg-surface-100 p-3 text-xs dark:bg-surface-800">
-          <div>
-            <strong>Endpoint:</strong> {endpoint}
+        {!tool.needsFileUpload && (
+          <div className="mb-4 rounded-lg bg-surface-100 p-3 text-xs dark:bg-surface-800">
+            <div>
+              <strong>Endpoint:</strong> {endpoint}
+            </div>
+            <div>
+              <strong>Method:</strong> {tool.method}
+            </div>
           </div>
-          <div>
-            <strong>Method:</strong> {tool.method}
-          </div>
-        </div>
+        )}
 
         <form className="space-y-4" onSubmit={onSubmit}>
           {tool.needsVersionId && (
@@ -98,7 +121,7 @@ export const ToolDetailPage = () => {
                 value={workspaceId}
                 onChange={(event) => setWorkspaceId(event.target.value)}
                 className="w-full rounded-lg border border-surface-300 px-3 py-2 text-sm dark:border-surface-700 dark:bg-surface-900"
-                placeholder="e.g. 3"
+                placeholder="optional for guest convert-to-pdf"
               />
             </div>
           )}
@@ -106,11 +129,30 @@ export const ToolDetailPage = () => {
           {tool.needsFileUpload ? (
             <div>
               <label className="mb-1 block text-sm font-medium">Upload file</label>
+              <label
+                htmlFor="tool-upload"
+                onDrop={setDroppedFile}
+                onDragOver={(event) => {
+                  event.preventDefault()
+                  setIsDragging(true)
+                }}
+                onDragLeave={() => setIsDragging(false)}
+                className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-8 text-center transition ${
+                  isDragging
+                    ? 'border-accent-500 bg-accent-50 dark:bg-surface-800'
+                    : 'border-surface-300 bg-surface-50 dark:border-surface-700 dark:bg-surface-900'
+                }`}
+              >
+                <span className="text-sm font-semibold">Drag and drop your file here</span>
+                <span className="mt-1 text-xs text-surface-500">or click to browse</span>
+                {file && <span className="mt-3 text-xs text-accent-700 dark:text-accent-300">Selected: {file.name}</span>}
+              </label>
               <input
+                id="tool-upload"
                 type="file"
                 required
                 onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-                className="w-full rounded-lg border border-surface-300 px-3 py-2 text-sm dark:border-surface-700 dark:bg-surface-900"
+                className="hidden"
               />
             </div>
           ) : tool.method === 'POST' ? (
@@ -142,6 +184,27 @@ export const ToolDetailPage = () => {
           ) : (
             <pre className="overflow-x-auto rounded-lg bg-surface-950 p-3 text-xs text-surface-100">{response}</pre>
           )}
+        </Card>
+      )}
+
+      {previewUrl && (
+        <Card className="mt-6 p-6">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Preview</h2>
+            <a
+              href={responseData?.result_url as string}
+              target="_blank"
+              rel="noreferrer"
+              className="text-sm font-semibold text-accent-600 hover:text-accent-700"
+            >
+              Download / Open file
+            </a>
+          </div>
+          <iframe
+            title="Conversion preview"
+            src={previewUrl as string}
+            className="h-[640px] w-full rounded-lg border border-surface-200 dark:border-surface-700"
+          />
         </Card>
       )}
     </div>

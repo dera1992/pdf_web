@@ -5,6 +5,7 @@ export type AsyncJobResponse = {
   status: string
   progress: number
   result_url: string | null
+  preview_url?: string | null
 }
 
 export const pdfToolsApi = {

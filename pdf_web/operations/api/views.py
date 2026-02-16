@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.decorators import action
+from rest_framework.permissions import AllowAny
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -14,6 +16,7 @@ from pdf_web.audit.utils import log_audit_event
 from pdf_web.documents.models import Document
 from pdf_web.documents.models import DocumentVersion
 from pdf_web.documents.models import Workspace
+from pdf_web.documents.models import WorkspaceMember
 from pdf_web.documents.models import WorkspaceRole
 from pdf_web.operations.api.serializers import ConversionJobSerializer
 from pdf_web.operations.api.serializers import OperationJobSerializer
@@ -36,7 +39,12 @@ class OperationJobViewSet(ModelViewSet):
     def create_operation(self, request, operation_type: str):
         workspace = get_object_or_404(Workspace, pk=request.data.get("workspace"))
         require_role(request.user, workspace, [WorkspaceRole.ADMIN, WorkspaceRole.OWNER])
-        job = OperationJob.objects.create(workspace=workspace, requested_by=request.user, type=operation_type, params=request.data or {})
+        job = OperationJob.objects.create(
+            workspace=workspace,
+            requested_by=request.user,
+            type=operation_type,
+            params=request.data or {},
+        )
         version_ids = request.data.get("version_ids", [])
         if version_ids:
             job.input_versions.add(*DocumentVersion.objects.filter(id__in=version_ids))
@@ -74,30 +82,82 @@ class ExportJobViewSet(ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return OperationJob.objects.filter(Q(workspace__owner=self.request.user) | Q(workspace__memberships__user=self.request.user), type=OperationType.EXPORT).distinct()
+        return OperationJob.objects.filter(
+            Q(workspace__owner=self.request.user) | Q(workspace__memberships__user=self.request.user),
+            type=OperationType.EXPORT,
+        ).distinct()
 
 
 class ConvertToPdfView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
+
+    def _guest_workspace(self) -> Workspace:
+        User = get_user_model()
+        guest_user, _ = User.objects.get_or_create(
+            email="guest-conversion@codexpdf.local",
+            defaults={"name": "Guest Conversion"},
+        )
+        if not guest_user.has_usable_password():
+            guest_user.set_unusable_password()
+            guest_user.save(update_fields=["password"])
+        workspace, _ = Workspace.objects.get_or_create(name="Guest Conversions", owner=guest_user)
+        WorkspaceMember.objects.get_or_create(
+            workspace=workspace,
+            user=guest_user,
+            defaults={"role": WorkspaceRole.OWNER},
+        )
+        return workspace
+
+    def _resolve_workspace(self, request) -> Workspace:
+        workspace_id = request.data.get("workspace")
+        if request.user.is_authenticated:
+            if workspace_id:
+                workspace = get_object_or_404(Workspace, pk=workspace_id)
+                require_role(
+                    request.user,
+                    workspace,
+                    [WorkspaceRole.EDITOR, WorkspaceRole.ADMIN, WorkspaceRole.OWNER],
+                )
+                return workspace
+            owned_workspace = Workspace.objects.filter(owner=request.user).first()
+            if owned_workspace:
+                return owned_workspace
+            workspace = Workspace.objects.create(name=f"{request.user.email} Workspace", owner=request.user)
+            WorkspaceMember.objects.get_or_create(
+                workspace=workspace,
+                user=request.user,
+                defaults={"role": WorkspaceRole.OWNER},
+            )
+            return workspace
+        return self._guest_workspace()
 
     def post(self, request, source: str):
-        workspace = get_object_or_404(Workspace, pk=request.data.get("workspace"))
-        require_role(request.user, workspace, [WorkspaceRole.EDITOR, WorkspaceRole.ADMIN, WorkspaceRole.OWNER])
         upload = request.FILES.get("file")
         if not upload:
             return Response({"detail": "file is required"}, status=400)
-        document = Document.objects.create(workspace=workspace, title=upload.name, created_by=request.user)
-        version = DocumentVersion.objects.create(document=document, version_number=1, file=upload, created_by=request.user, processing_state={"upload": "completed"})
+        workspace = self._resolve_workspace(request)
+        created_by = request.user if request.user.is_authenticated else workspace.owner
+        document = Document.objects.create(workspace=workspace, title=upload.name, created_by=created_by)
+        version = DocumentVersion.objects.create(
+            document=document,
+            version_number=1,
+            file=upload,
+            created_by=created_by,
+            processing_state={"upload": "completed"},
+        )
         document.current_version = version
         document.save(update_fields=["current_version"])
         job = ConversionJob.objects.create(
             workspace=workspace,
             document=document,
             version=version,
-            requested_by=request.user,
+            requested_by=created_by,
             target_format="pdf",
             source_mime_type=source,
             params=request.data.dict(),
         )
-        process_conversion_job.delay(job.id)
+
+        # Run once inline to support immediate preview UX, then return serializer contract.
+        process_conversion_job(job.id)
+        job.refresh_from_db()
         return Response(ConversionJobSerializer(job, context={"request": request}).data, status=202)

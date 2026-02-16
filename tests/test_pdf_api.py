@@ -308,3 +308,15 @@ def test_conversion_endpoints_return_async_contract(api_client, user, workspace)
     response = api_client.post("/api/convert/word-to-pdf/", payload, format="multipart")
     assert response.status_code == 202
     assert {"id", "status", "progress", "result_url"}.issubset(set(response.data.keys()))
+
+
+@pytest.mark.django_db
+def test_guest_convert_to_pdf_supports_preview(api_client):
+    response = api_client.post(
+        "/api/convert/word-to-pdf/",
+        {"file": make_pdf_file("guest-input.docx")},
+        format="multipart",
+    )
+    assert response.status_code == 202
+    assert "result_url" in response.data
+    assert "preview_url" in response.data
