@@ -35,9 +35,7 @@ class OperationJobViewSet(ModelViewSet):
     http_method_names = ["get", "post"]
 
     def get_queryset(self):
-        return OperationJob.objects.filter(
-            Q(workspace__owner=self.request.user) | Q(workspace__memberships__user=self.request.user)
-        ).distinct()
+        return OperationJob.objects.filter(Q(workspace__owner=self.request.user) | Q(workspace__memberships__user=self.request.user)).distinct()
 
     def create_operation(self, request, operation_type: str):
         workspace = get_object_or_404(Workspace, pk=request.data.get("workspace"))
@@ -52,13 +50,7 @@ class OperationJobViewSet(ModelViewSet):
         if version_ids:
             job.input_versions.add(*DocumentVersion.objects.filter(id__in=version_ids))
         apply_operation.delay(job.id)
-        log_audit_event(
-            request=request,
-            workspace=workspace,
-            action=f"operation.{operation_type}",
-            entity_type="OperationJob",
-            entity_id=job.id,
-        )
+        log_audit_event(request=request, workspace=workspace, action=f"operation.{operation_type}", entity_type="OperationJob", entity_id=job.id)
         return Response(OperationJobSerializer(job).data, status=status.HTTP_201_CREATED)
 
     @action(detail=False, methods=["post"], url_path="merge")
