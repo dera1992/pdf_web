@@ -331,6 +331,7 @@ def test_guest_pdf_to_ppt_conversion_upload_contract(api_client):
     )
     assert response.status_code == 202
     assert {"id", "status", "progress", "result_url", "preview_url"}.issubset(set(response.data.keys()))
+    assert str(response.data["result_url"]).lower().endswith(".pptx")
 
 
 @pytest.mark.django_db
@@ -342,3 +343,5 @@ def test_guest_excel_to_pdf_conversion_upload_contract(api_client):
     )
     assert response.status_code == 202
     assert {"id", "status", "progress", "result_url", "preview_url"}.issubset(set(response.data.keys()))
+    assert str(response.data["result_url"]).lower().endswith(".pdf")
+    assert str(response.data["preview_url"]).lower().endswith(".pdf")

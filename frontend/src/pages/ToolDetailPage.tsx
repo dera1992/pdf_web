@@ -1,4 +1,4 @@
-import { DragEvent, FormEvent, useMemo, useState } from 'react'
+import { DragEvent, FormEvent, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import apiClient from '../api/client'
 import { Card } from '../components/ui/Card'
@@ -8,6 +8,12 @@ type ToolRunResponse = {
   result_url?: string | null
   preview_url?: string | null
   [key: string]: unknown
+}
+
+const isPreviewable = (name: string | undefined) => {
+  if (!name) return false
+  const lower = name.toLowerCase()
+  return lower.endsWith('.pdf') || lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg')
 }
 
 export const ToolDetailPage = () => {
@@ -22,6 +28,17 @@ export const ToolDetailPage = () => {
   const [response, setResponse] = useState<string>('')
   const [responseData, setResponseData] = useState<ToolRunResponse | null>(null)
   const [error, setError] = useState<string>('')
+  const [uploadedPreviewUrl, setUploadedPreviewUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!file || !isPreviewable(file.name)) {
+      setUploadedPreviewUrl(null)
+      return
+    }
+    const url = URL.createObjectURL(file)
+    setUploadedPreviewUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [file])
 
   if (!tool) {
     return (
@@ -78,7 +95,7 @@ export const ToolDetailPage = () => {
   const previewUrl = responseData?.preview_url || responseData?.result_url
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-10 lg:px-6">
+    <div className="mx-auto w-full max-w-6xl px-4 py-10 lg:px-6">
       <div className="mb-6">
         <Link to="/tools" className="text-sm font-semibold text-accent-600">
           ← Back to all tools
@@ -176,6 +193,47 @@ export const ToolDetailPage = () => {
         </form>
       </Card>
 
+      {(uploadedPreviewUrl || previewUrl) && (
+        <div className="mt-6 grid grid-cols-12 gap-4">
+          <Card className="col-span-12 p-4 lg:col-span-7">
+            <h2 className="mb-2 text-lg font-semibold">Uploaded document</h2>
+            {uploadedPreviewUrl ? (
+              <iframe
+                title="Uploaded document preview"
+                src={uploadedPreviewUrl}
+                className="h-[640px] w-full rounded-lg border border-surface-200 dark:border-surface-700"
+              />
+            ) : (
+              <p className="text-sm text-surface-500">Preview not available for this upload type.</p>
+            )}
+          </Card>
+          <Card className="col-span-12 p-4 lg:col-span-5">
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Converted preview</h2>
+              {responseData?.result_url && (
+                <a
+                  href={responseData.result_url as string}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-sm font-semibold text-accent-600 hover:text-accent-700"
+                >
+                  Download
+                </a>
+              )}
+            </div>
+            {previewUrl ? (
+              <iframe
+                title="Conversion preview"
+                src={previewUrl as string}
+                className="h-[640px] w-full rounded-lg border border-surface-200 dark:border-surface-700"
+              />
+            ) : (
+              <p className="text-sm text-surface-500">Converted preview not available yet.</p>
+            )}
+          </Card>
+        </div>
+      )}
+
       {(response || error) && (
         <Card className="mt-6 p-6">
           <h2 className="mb-2 text-lg font-semibold">Response</h2>
@@ -184,27 +242,6 @@ export const ToolDetailPage = () => {
           ) : (
             <pre className="overflow-x-auto rounded-lg bg-surface-950 p-3 text-xs text-surface-100">{response}</pre>
           )}
-        </Card>
-      )}
-
-      {previewUrl && (
-        <Card className="mt-6 p-6">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Preview</h2>
-            <a
-              href={responseData?.result_url as string}
-              target="_blank"
-              rel="noreferrer"
-              className="text-sm font-semibold text-accent-600 hover:text-accent-700"
-            >
-              Download / Open file
-            </a>
-          </div>
-          <iframe
-            title="Conversion preview"
-            src={previewUrl as string}
-            className="h-[640px] w-full rounded-lg border border-surface-200 dark:border-surface-700"
-          />
         </Card>
       )}
     </div>

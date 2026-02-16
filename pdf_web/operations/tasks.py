@@ -14,6 +14,7 @@ from pdf_web.operations.models import OperationStatus
 from pdf_web.operations.models import PageNumberJob
 from pdf_web.operations.models import WatermarkJob
 from pdf_web.operations.services import clone_version
+from pdf_web.operations.services import create_converted_version
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +62,7 @@ def process_conversion_job(self, job_id: int) -> int:
     job.save(update_fields=["status", "progress"])
     _notify_workspace(job.workspace_id, {"job_id": job.id, "status": job.status, "progress": job.progress, "result_url": None})
     try:
-        output = clone_version(job.version, created_by=job.requested_by, processing_state={"conversion": job.target_format})
+        output = create_converted_version(job.version, target_format=job.target_format, created_by=job.requested_by)
         job.result_version = output
         job.status = "completed"
         job.progress = 100
