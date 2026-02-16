@@ -28,7 +28,7 @@ export const PDF_TOOLS: ToolDefinition[] = [
     category: 'view-edit',
     description: 'Update layout JSON text blocks and save as a new version.',
     route: '/tools/edit-text',
-    endpoint: '/api/versions/{versionId}/edit-text/',
+    endpoint: '/versions/{versionId}/edit-text/',
     method: 'POST',
     needsVersionId: true,
     payloadHint: '{"text_content":"Updated text","layout_json":{"1":[{"text":"Updated"}]}}'
@@ -39,7 +39,7 @@ export const PDF_TOOLS: ToolDefinition[] = [
     category: 'view-edit',
     description: 'Create annotations such as highlight, underline, strike-through, notes, and shapes.',
     route: '/tools/annotations',
-    endpoint: '/api/versions/{versionId}/annotations/',
+    endpoint: '/versions/{versionId}/annotations/',
     method: 'POST',
     needsVersionId: true,
     payloadHint: '{"page_number":1,"type":"highlight","payload":{"text":"Important"}}'
@@ -50,7 +50,7 @@ export const PDF_TOOLS: ToolDefinition[] = [
     category: 'view-edit',
     description: 'Render a specific page preview for the reader.',
     route: '/tools/reader-render-page',
-    endpoint: '/api/versions/{versionId}/render-page/?page=1',
+    endpoint: '/versions/{versionId}/render-page/?page=1',
     method: 'GET',
     needsVersionId: true
   },
@@ -60,7 +60,7 @@ export const PDF_TOOLS: ToolDefinition[] = [
     category: 'view-edit',
     description: 'Search text inside the current document version.',
     route: '/tools/reader-search',
-    endpoint: '/api/versions/{versionId}/search/?q=term',
+    endpoint: '/versions/{versionId}/search/?q=term',
     method: 'GET',
     needsVersionId: true
   },
@@ -70,7 +70,7 @@ export const PDF_TOOLS: ToolDefinition[] = [
     category: 'view-edit',
     description: 'Add page numbers with positioning and style options.',
     route: '/tools/number-pages',
-    endpoint: '/api/versions/{versionId}/number-pages/',
+    endpoint: '/versions/{versionId}/number-pages/',
     method: 'POST',
     needsVersionId: true,
     payloadHint: '{"position":"bottom-right","size":12,"start_number":1}'
@@ -81,7 +81,7 @@ export const PDF_TOOLS: ToolDefinition[] = [
     category: 'view-edit',
     description: 'Crop selected pages using coordinates.',
     route: '/tools/crop',
-    endpoint: '/api/versions/{versionId}/crop/',
+    endpoint: '/versions/{versionId}/crop/',
     method: 'POST',
     needsVersionId: true,
     payloadHint: '{"page_range":"1-2","coordinates":{"x":10,"y":10,"w":500,"h":700}}'
@@ -92,7 +92,7 @@ export const PDF_TOOLS: ToolDefinition[] = [
     category: 'view-edit',
     description: 'Apply manual or AI-guided redaction.',
     route: '/tools/redact',
-    endpoint: '/api/versions/{versionId}/redact/',
+    endpoint: '/versions/{versionId}/redact/',
     method: 'POST',
     needsVersionId: true,
     payloadHint: '{"mode":"manual","areas":[{"page":1,"x":10,"y":10,"w":200,"h":30}]}'
@@ -103,7 +103,7 @@ export const PDF_TOOLS: ToolDefinition[] = [
     category: 'view-edit',
     description: 'Apply text/image watermark to all pages.',
     route: '/tools/watermark',
-    endpoint: '/api/versions/{versionId}/watermark/',
+    endpoint: '/versions/{versionId}/watermark/',
     method: 'POST',
     needsVersionId: true,
     payloadHint: '{"text":"CONFIDENTIAL","opacity":0.4,"rotation":45}'
@@ -114,7 +114,7 @@ export const PDF_TOOLS: ToolDefinition[] = [
     category: 'view-edit',
     description: 'Fill AcroForm fields and flatten output.',
     route: '/tools/fill-form',
-    endpoint: '/api/versions/{versionId}/fill-form/',
+    endpoint: '/versions/{versionId}/fill-form/',
     method: 'POST',
     needsVersionId: true,
     payloadHint: '{"fields":{"full_name":"Jane Doe","company":"Acme"}}'
@@ -125,7 +125,7 @@ export const PDF_TOOLS: ToolDefinition[] = [
     category: 'view-edit',
     description: 'Generate secure share links with expiry and optional password.',
     route: '/tools/share',
-    endpoint: '/api/versions/{versionId}/share/',
+    endpoint: '/versions/{versionId}/share/',
     method: 'POST',
     needsVersionId: true,
     payloadHint: '{"expires_in_hours":24,"password":"secret"}'
@@ -136,9 +136,9 @@ export const PDF_TOOLS: ToolDefinition[] = [
     category: 'convert-from-pdf',
     description: 'Convert PDF versions to Word asynchronously.',
     route: '/tools/convert-word',
-    endpoint: '/api/versions/{versionId}/convert/word/',
+    endpoint: '/convert/pdf-to-word/',
     method: 'POST',
-    needsVersionId: true
+    needsFileUpload: true
   },
   {
     id: 'convert-excel',
@@ -146,9 +146,9 @@ export const PDF_TOOLS: ToolDefinition[] = [
     category: 'convert-from-pdf',
     description: 'Convert PDF versions to Excel asynchronously.',
     route: '/tools/convert-excel',
-    endpoint: '/api/versions/{versionId}/convert/excel/',
+    endpoint: '/convert/pdf-to-excel/',
     method: 'POST',
-    needsVersionId: true
+    needsFileUpload: true
   },
   {
     id: 'convert-ppt',
@@ -156,9 +156,9 @@ export const PDF_TOOLS: ToolDefinition[] = [
     category: 'convert-from-pdf',
     description: 'Convert PDF versions to PowerPoint asynchronously.',
     route: '/tools/convert-ppt',
-    endpoint: '/api/versions/{versionId}/convert/ppt/',
+    endpoint: '/convert/pdf-to-ppt/',
     method: 'POST',
-    needsVersionId: true
+    needsFileUpload: true
   },
   {
     id: 'convert-jpg',
@@ -166,9 +166,9 @@ export const PDF_TOOLS: ToolDefinition[] = [
     category: 'convert-from-pdf',
     description: 'Convert PDF versions to images asynchronously.',
     route: '/tools/convert-jpg',
-    endpoint: '/api/versions/{versionId}/convert/jpg/',
+    endpoint: '/convert/pdf-to-jpg/',
     method: 'POST',
-    needsVersionId: true
+    needsFileUpload: true
   },
   {
     id: 'word-to-pdf',
@@ -176,7 +176,7 @@ export const PDF_TOOLS: ToolDefinition[] = [
     category: 'convert-to-pdf',
     description: 'Upload a Word file and convert it to PDF.',
     route: '/tools/word-to-pdf',
-    endpoint: '/api/convert/word-to-pdf/',
+    endpoint: '/convert/word-to-pdf/',
     method: 'POST',
     needsFileUpload: true
   },
@@ -186,7 +186,7 @@ export const PDF_TOOLS: ToolDefinition[] = [
     category: 'convert-to-pdf',
     description: 'Upload an Excel file and convert it to PDF.',
     route: '/tools/excel-to-pdf',
-    endpoint: '/api/convert/excel-to-pdf/',
+    endpoint: '/convert/excel-to-pdf/',
     method: 'POST',
     needsFileUpload: true
   },
@@ -196,7 +196,7 @@ export const PDF_TOOLS: ToolDefinition[] = [
     category: 'convert-to-pdf',
     description: 'Upload a presentation file and convert it to PDF.',
     route: '/tools/ppt-to-pdf',
-    endpoint: '/api/convert/ppt-to-pdf/',
+    endpoint: '/convert/ppt-to-pdf/',
     method: 'POST',
     needsFileUpload: true
   },
@@ -206,7 +206,7 @@ export const PDF_TOOLS: ToolDefinition[] = [
     category: 'convert-to-pdf',
     description: 'Upload images and convert them to PDF.',
     route: '/tools/jpg-to-pdf',
-    endpoint: '/api/convert/jpg-to-pdf/',
+    endpoint: '/convert/jpg-to-pdf/',
     method: 'POST',
     needsFileUpload: true
   },
@@ -216,7 +216,7 @@ export const PDF_TOOLS: ToolDefinition[] = [
     category: 'ocr',
     description: 'Run OCR with language selection and queue processing.',
     route: '/tools/ocr',
-    endpoint: '/api/versions/{versionId}/ocr/',
+    endpoint: '/versions/{versionId}/ocr/',
     method: 'POST',
     needsVersionId: true,
     payloadHint: '{"language":"eng"}'

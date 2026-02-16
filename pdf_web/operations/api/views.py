@@ -88,7 +88,7 @@ class ExportJobViewSet(ReadOnlyModelViewSet):
         ).distinct()
 
 
-class ConvertToPdfView(APIView):
+class BaseUploadConversionView(APIView):
     permission_classes = [AllowAny]
 
     def _guest_workspace(self) -> Workspace:
@@ -131,7 +131,7 @@ class ConvertToPdfView(APIView):
             return workspace
         return self._guest_workspace()
 
-    def post(self, request, source: str):
+    def _run_upload_conversion(self, request, *, target_format: str, source_mime_type: str):
         upload = request.FILES.get("file")
         if not upload:
             return Response({"detail": "file is required"}, status=400)
@@ -152,12 +152,21 @@ class ConvertToPdfView(APIView):
             document=document,
             version=version,
             requested_by=created_by,
-            target_format="pdf",
-            source_mime_type=source,
+            target_format=target_format,
+            source_mime_type=source_mime_type,
             params=request.data.dict(),
         )
-
         # Run once inline to support immediate preview UX, then return serializer contract.
         process_conversion_job(job.id)
         job.refresh_from_db()
         return Response(ConversionJobSerializer(job, context={"request": request}).data, status=202)
+
+
+class ConvertToPdfView(BaseUploadConversionView):
+    def post(self, request, source: str):
+        return self._run_upload_conversion(request, target_format="pdf", source_mime_type=source)
+
+
+class ConvertFromPdfView(BaseUploadConversionView):
+    def post(self, request, target: str):
+        return self._run_upload_conversion(request, target_format=target, source_mime_type="pdf")

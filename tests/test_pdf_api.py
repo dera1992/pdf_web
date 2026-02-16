@@ -320,3 +320,14 @@ def test_guest_convert_to_pdf_supports_preview(api_client):
     assert response.status_code == 202
     assert "result_url" in response.data
     assert "preview_url" in response.data
+
+
+@pytest.mark.django_db
+def test_guest_pdf_to_ppt_conversion_upload_contract(api_client):
+    response = api_client.post(
+        "/api/convert/pdf-to-ppt/",
+        {"file": make_pdf_file("guest-input.pdf")},
+        format="multipart",
+    )
+    assert response.status_code == 202
+    assert {"id", "status", "progress", "result_url", "preview_url"}.issubset(set(response.data.keys()))
