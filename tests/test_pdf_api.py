@@ -480,6 +480,23 @@ def test_guest_pdf_to_ppt_requires_high_fidelity_by_default(api_client, monkeypa
 
 
 @pytest.mark.django_db
+def test_upload_conversion_does_not_raise_500_when_conversion_fails(api_client, monkeypatch):
+    from pdf_web.operations import services
+
+    monkeypatch.setattr(services, "_convert_pdf_with_libreoffice", lambda *_args, **_kwargs: None)
+
+    response = api_client.post(
+        "/api/convert/pdf-to-word/",
+        {"file": make_pdf_file("guest-input.pdf")},
+        format="multipart",
+    )
+
+    assert response.status_code == 202
+    assert response.data["status"] == "failed"
+    assert response.data.get("error")
+
+
+@pytest.mark.django_db
 def test_guest_pdf_to_jpg_conversion_renders_first_page(api_client):
     response = api_client.post(
         "/api/convert/pdf-to-jpg/",

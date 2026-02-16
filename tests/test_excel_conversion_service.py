@@ -150,3 +150,12 @@ def test_xlsx_from_text_removes_illegal_xml_chars():
         strings_xml = archive.read("xl/sharedStrings.xml")
     assert b"HelloWorld" in strings_xml
     assert b"\x00" not in strings_xml
+
+
+def test_pptx_from_text_contains_required_shape_properties():
+    output = services._pptx_from_text("Hello deck")
+    with zipfile.ZipFile(BytesIO(output)) as archive:
+        slide_xml = archive.read("ppt/slides/slide1.xml")
+    assert b"<p:spPr>" in slide_xml
+    assert b"<a:prstGeom prst=\"rect\">" in slide_xml
+    assert b"<p:clrMapOvr>" in slide_xml

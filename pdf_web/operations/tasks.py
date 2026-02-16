@@ -87,7 +87,8 @@ def process_conversion_job(self, job_id: int) -> int:
         job.finished_at = timezone.now()
         job.save(update_fields=["status", "error", "finished_at"])
         _notify_workspace(job.workspace_id, {"job_id": job.id, "status": job.status, "progress": job.progress, "result_url": None})
-        raise
+        logger.exception("Failed conversion job %s", job_id)
+        return job.id
 
 
 @shared_task(bind=True)
