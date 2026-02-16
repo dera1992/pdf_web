@@ -380,6 +380,89 @@ def test_guest_pdf_to_ppt_conversion_upload_contract(api_client):
 
 
 @pytest.mark.django_db
+def test_guest_pdf_to_word_conversion_contains_text_fallback(api_client, monkeypatch):
+    from pdf_web.operations import services
+    from pdf_web.operations.models import ConversionJob
+
+    monkeypatch.setattr(services, "_convert_pdf_with_libreoffice", lambda *_args, **_kwargs: None)
+
+    response = api_client.post(
+        "/api/convert/pdf-to-word/",
+        {"file": make_pdf_file("guest-input.pdf")},
+        format="multipart",
+    )
+    assert response.status_code == 202
+
+    job = ConversionJob.objects.get(id=response.data["id"])
+    with job.result_version.file.open("rb") as handle:
+        output = handle.read()
+    with zipfile.ZipFile(BytesIO(output)) as archive:
+        doc_xml = archive.read("word/document.xml")
+    assert b"Hello" in doc_xml
+
+
+@pytest.mark.django_db
+def test_guest_pdf_to_excel_conversion_contains_text_fallback(api_client, monkeypatch):
+    from pdf_web.operations import services
+    from pdf_web.operations.models import ConversionJob
+
+    monkeypatch.setattr(services, "_convert_pdf_with_libreoffice", lambda *_args, **_kwargs: None)
+
+    response = api_client.post(
+        "/api/convert/pdf-to-excel/",
+        {"file": make_pdf_file("guest-input.pdf")},
+        format="multipart",
+    )
+    assert response.status_code == 202
+
+    job = ConversionJob.objects.get(id=response.data["id"])
+    with job.result_version.file.open("rb") as handle:
+        output = handle.read()
+    with zipfile.ZipFile(BytesIO(output)) as archive:
+        strings_xml = archive.read("xl/sharedStrings.xml")
+    assert b"Hello" in strings_xml
+
+
+@pytest.mark.django_db
+def test_guest_pdf_to_ppt_conversion_contains_text_fallback(api_client, monkeypatch):
+    from pdf_web.operations import services
+    from pdf_web.operations.models import ConversionJob
+
+    monkeypatch.setattr(services, "_convert_pdf_with_libreoffice", lambda *_args, **_kwargs: None)
+
+    response = api_client.post(
+        "/api/convert/pdf-to-ppt/",
+        {"file": make_pdf_file("guest-input.pdf")},
+        format="multipart",
+    )
+    assert response.status_code == 202
+
+    job = ConversionJob.objects.get(id=response.data["id"])
+    with job.result_version.file.open("rb") as handle:
+        output = handle.read()
+    with zipfile.ZipFile(BytesIO(output)) as archive:
+        slide_xml = archive.read("ppt/slides/slide1.xml")
+    assert b"Hello" in slide_xml
+
+
+@pytest.mark.django_db
+def test_guest_pdf_to_jpg_conversion_renders_first_page(api_client):
+    response = api_client.post(
+        "/api/convert/pdf-to-jpg/",
+        {"file": make_pdf_file("guest-input.pdf")},
+        format="multipart",
+    )
+    assert response.status_code == 202
+    from pdf_web.operations.models import ConversionJob
+
+    job = ConversionJob.objects.get(id=response.data["id"])
+    with job.result_version.file.open("rb") as handle:
+        output = handle.read()
+    assert output.startswith(b"\xff\xd8\xff")
+    assert len(output) > 500
+
+
+@pytest.mark.django_db
 def test_guest_excel_to_pdf_conversion_upload_contract(api_client):
     response = api_client.post(
         "/api/convert/excel-to-pdf/",

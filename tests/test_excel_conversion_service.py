@@ -79,3 +79,57 @@ def test_convert_ppt_with_libreoffice_uses_impress_export_filter(monkeypatch):
     assert result is not None
     assert result.startswith(b"%PDF")
     assert "pdf:impress_pdf_Export" in captured["command"]
+
+
+def test_convert_pdf_with_libreoffice_uses_filter_for_docx(monkeypatch):
+    captured: dict[str, object] = {}
+
+    def fake_which(name):
+        return "/usr/bin/soffice" if name in {"soffice", "libreoffice"} else None
+
+    def fake_run(command, check, capture_output, timeout):
+        captured["command"] = command
+        outdir = Path(command[-1])
+        (outdir / "input.docx").write_bytes(b"docx-content")
+
+        class Result:
+            stderr = b""
+
+        return Result()
+
+    monkeypatch.setattr(services.shutil, "which", fake_which)
+    monkeypatch.setattr(services.subprocess, "run", fake_run)
+
+    result = services._convert_pdf_with_libreoffice(b"%PDF-1.4", target_ext="docx")
+
+    assert result == b"docx-content"
+    assert "docx:MS Word 2007 XML" in captured["command"]
+
+
+def test_convert_pdf_with_libreoffice_retries_plain_extension(monkeypatch):
+    calls: list[list[str]] = []
+
+    def fake_which(name):
+        return "/usr/bin/soffice" if name in {"soffice", "libreoffice"} else None
+
+    def fake_run(command, check, capture_output, timeout):
+        calls.append(command)
+        outdir = Path(command[-1])
+        if "xlsx:Calc MS Excel 2007 XML" in command:
+            raise subprocess.CalledProcessError(returncode=1, cmd=command)
+        (outdir / "input.xlsx").write_bytes(b"xlsx-content")
+
+        class Result:
+            stderr = b""
+
+        return Result()
+
+    monkeypatch.setattr(services.shutil, "which", fake_which)
+    monkeypatch.setattr(services.subprocess, "run", fake_run)
+
+    result = services._convert_pdf_with_libreoffice(b"%PDF-1.4", target_ext="xlsx")
+
+    assert result == b"xlsx-content"
+    assert len(calls) == 2
+    assert "xlsx:Calc MS Excel 2007 XML" in calls[0]
+    assert "xlsx" in calls[1]
