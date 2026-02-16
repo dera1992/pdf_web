@@ -25,6 +25,8 @@ from pdf_web.annotations.api.views import (
 
 # Operations / Export
 from pdf_web.operations.api.views import (
+    ConvertFromPdfView,
+    ConvertToPdfView,
     ExportJobViewSet,
     OperationJobViewSet,
 )
@@ -73,6 +75,15 @@ urlpatterns = [
 
     # Auth + Profile endpoints
     path("", include("pdf_web.users.api.urls")),
+
+    path("convert/word-to-pdf/", ConvertToPdfView.as_view(), {"source": "word"}, name="word-to-pdf"),
+    path("convert/excel-to-pdf/", ConvertToPdfView.as_view(), {"source": "excel"}, name="excel-to-pdf"),
+    path("convert/ppt-to-pdf/", ConvertToPdfView.as_view(), {"source": "ppt"}, name="ppt-to-pdf"),
+    path("convert/jpg-to-pdf/", ConvertToPdfView.as_view(), {"source": "jpg"}, name="jpg-to-pdf"),
+    path("convert/pdf-to-word/", ConvertFromPdfView.as_view(), {"target": "word"}, name="pdf-to-word"),
+    path("convert/pdf-to-excel/", ConvertFromPdfView.as_view(), {"target": "excel"}, name="pdf-to-excel"),
+    path("convert/pdf-to-ppt/", ConvertFromPdfView.as_view(), {"target": "ppt"}, name="pdf-to-ppt"),
+    path("convert/pdf-to-jpg/", ConvertFromPdfView.as_view(), {"target": "jpg"}, name="pdf-to-jpg"),
 
     # PDF Editor URLs
     path("", include("pdf_web.pdfeditor.urls")),

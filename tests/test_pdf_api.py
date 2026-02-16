@@ -1,4 +1,7 @@
+from io import BytesIO
+import zipfile
 import pytest
+from PIL import Image
 from django.core.files.uploadedfile import SimpleUploadedFile
 from rest_framework.test import APIClient
 
@@ -22,6 +25,48 @@ def make_pdf_file(name="sample.pdf"):
     return SimpleUploadedFile(name, pdf_bytes, content_type="application/pdf")
 
 
+
+
+def make_jpg_file(name="sample.jpg"):
+    buf = BytesIO()
+    Image.new("RGB", (200, 100), color=(52, 120, 220)).save(buf, format="JPEG")
+    return SimpleUploadedFile(name, buf.getvalue(), content_type="image/jpeg")
+
+
+def make_ooxml_file(name: str, files: dict[str, str], content_type: str):
+    buffer = BytesIO()
+    with zipfile.ZipFile(buffer, mode="w") as archive:
+        archive.writestr("[Content_Types].xml", '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"></Types>')
+        for path, xml in files.items():
+            archive.writestr(path, xml)
+    return SimpleUploadedFile(name, buffer.getvalue(), content_type=content_type)
+
+
+def make_docx_file(name="sample.docx"):
+    return make_ooxml_file(
+        name,
+        {"word/document.xml": "<w:document><w:body><w:p><w:t>Hello DOCX content</w:t></w:p></w:body></w:document>"},
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
+
+
+def make_xlsx_file(name="sample.xlsx"):
+    return make_ooxml_file(
+        name,
+        {
+            "xl/sharedStrings.xml": "<sst><si><t>Revenue</t></si><si><t>Quarterly Sheet</t></si></sst>",
+            "xl/worksheets/sheet1.xml": '<worksheet><sheetData><row><c t="s"><v>0</v></c><c t="s"><v>1</v></c></row></sheetData></worksheet>',
+        },
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+
+def make_pptx_file(name="sample.pptx"):
+    return make_ooxml_file(
+        name,
+        {"ppt/slides/slide1.xml": "<p:sld><p:cSld><p:spTree><a:t>Pitch Deck Slide</a:t></p:spTree></p:cSld></p:sld>"},
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    )
 @pytest.fixture
 def workspace(user):
     workspace = Workspace.objects.create(name="Acme", owner=user)
@@ -268,3 +313,282 @@ def test_audit_list_filters(api_client, user, workspace):
     response = api_client.get(f"/api/audit/?document_id={document.id}&action=document.download")
     assert response.status_code == 200
     assert response.data
+
+
+@pytest.mark.django_db
+def test_new_pdf_tool_endpoints_and_share(api_client, user, workspace):
+    document, version = create_document(workspace, user)
+    api_client.force_authenticate(user=user)
+
+    response = api_client.post(
+        f"/api/versions/{version.id}/edit-text/",
+        {"text_content": "Updated", "layout_json": {"1": [{"text": "Updated"}]}} ,
+        format="json",
+    )
+    assert response.status_code == 201
+
+    response = api_client.post(f"/api/versions/{version.id}/number-pages/", {"start_number": 1}, format="json")
+    assert response.status_code == 200
+    assert "id" in response.data
+
+    response = api_client.post(
+        f"/api/versions/{version.id}/share/",
+        {"expires_in_hours": 24, "password": "s3cret"},
+        format="json",
+    )
+    assert response.status_code == 201
+    assert response.data["token"]
+
+
+@pytest.mark.django_db
+def test_conversion_endpoints_return_async_contract(api_client, user, workspace):
+    document, version = create_document(workspace, user)
+    api_client.force_authenticate(user=user)
+
+    response = api_client.post(f"/api/versions/{version.id}/convert/word/", {}, format="json")
+    assert response.status_code == 200
+    assert {"id", "status", "progress", "result_url"}.issubset(set(response.data.keys()))
+
+    payload = {"workspace": workspace.id, "file": make_pdf_file("from-doc.pdf")}
+    response = api_client.post("/api/convert/word-to-pdf/", payload, format="multipart")
+    assert response.status_code == 202
+    assert {"id", "status", "progress", "result_url"}.issubset(set(response.data.keys()))
+
+
+@pytest.mark.django_db
+def test_guest_convert_to_pdf_supports_preview(api_client):
+    response = api_client.post(
+        "/api/convert/word-to-pdf/",
+        {"file": make_pdf_file("guest-input.docx")},
+        format="multipart",
+    )
+    assert response.status_code == 202
+    assert "result_url" in response.data
+    assert "preview_url" in response.data
+
+
+@pytest.mark.django_db
+def test_guest_pdf_to_ppt_conversion_upload_contract(api_client):
+    response = api_client.post(
+        "/api/convert/pdf-to-ppt/",
+        {"file": make_pdf_file("guest-input.pdf")},
+        format="multipart",
+    )
+    assert response.status_code == 202
+    assert {"id", "status", "progress", "result_url", "preview_url"}.issubset(set(response.data.keys()))
+    assert str(response.data["result_url"]).lower().endswith(".pptx")
+
+
+@pytest.mark.django_db
+def test_guest_pdf_to_word_conversion_contains_text_fallback(api_client, monkeypatch):
+    from pdf_web.operations import services
+    from pdf_web.operations.models import ConversionJob
+
+    monkeypatch.setattr(services, "_convert_pdf_with_libreoffice", lambda *_args, **_kwargs: None)
+
+    response = api_client.post(
+        "/api/convert/pdf-to-word/",
+        {"file": make_pdf_file("guest-input.pdf"), "allow_text_fallback": "true"},
+        format="multipart",
+    )
+    assert response.status_code == 202
+
+    job = ConversionJob.objects.get(id=response.data["id"])
+    with job.result_version.file.open("rb") as handle:
+        output = handle.read()
+    with zipfile.ZipFile(BytesIO(output)) as archive:
+        doc_xml = archive.read("word/document.xml")
+    assert b"Hello" in doc_xml
+
+
+@pytest.mark.django_db
+def test_guest_pdf_to_excel_conversion_contains_text_fallback(api_client, monkeypatch):
+    from pdf_web.operations import services
+    from pdf_web.operations.models import ConversionJob
+
+    monkeypatch.setattr(services, "_convert_pdf_with_libreoffice", lambda *_args, **_kwargs: None)
+
+    response = api_client.post(
+        "/api/convert/pdf-to-excel/",
+        {"file": make_pdf_file("guest-input.pdf")},
+        format="multipart",
+    )
+    assert response.status_code == 202
+
+    job = ConversionJob.objects.get(id=response.data["id"])
+    with job.result_version.file.open("rb") as handle:
+        output = handle.read()
+    with zipfile.ZipFile(BytesIO(output)) as archive:
+        strings_xml = archive.read("xl/sharedStrings.xml")
+    assert b"Hello" in strings_xml
+
+
+@pytest.mark.django_db
+def test_guest_pdf_to_ppt_conversion_contains_text_fallback(api_client, monkeypatch):
+    from pdf_web.operations import services
+    from pdf_web.operations.models import ConversionJob
+
+    monkeypatch.setattr(services, "_convert_pdf_with_libreoffice", lambda *_args, **_kwargs: None)
+
+    response = api_client.post(
+        "/api/convert/pdf-to-ppt/",
+        {"file": make_pdf_file("guest-input.pdf"), "allow_text_fallback": "true"},
+        format="multipart",
+    )
+    assert response.status_code == 202
+
+    job = ConversionJob.objects.get(id=response.data["id"])
+    with job.result_version.file.open("rb") as handle:
+        output = handle.read()
+    with zipfile.ZipFile(BytesIO(output)) as archive:
+        slide_xml = archive.read("ppt/slides/slide1.xml")
+    assert b"Hello" in slide_xml
+
+
+@pytest.mark.django_db
+def test_guest_pdf_to_word_requires_high_fidelity_by_default(api_client, monkeypatch):
+    from pdf_web.operations import services
+
+    monkeypatch.setattr(services, "_convert_pdf_with_libreoffice", lambda *_args, **_kwargs: None)
+
+    response = api_client.post(
+        "/api/convert/pdf-to-word/",
+        {"file": make_pdf_file("guest-input.pdf")},
+        format="multipart",
+    )
+
+    assert response.status_code == 202
+    assert response.data["status"] == "failed"
+    assert "High-fidelity PDF conversion is unavailable" in str(response.data.get("error"))
+
+
+@pytest.mark.django_db
+def test_guest_pdf_to_ppt_requires_high_fidelity_by_default(api_client, monkeypatch):
+    from pdf_web.operations import services
+
+    monkeypatch.setattr(services, "_convert_pdf_with_libreoffice", lambda *_args, **_kwargs: None)
+
+    response = api_client.post(
+        "/api/convert/pdf-to-ppt/",
+        {"file": make_pdf_file("guest-input.pdf")},
+        format="multipart",
+    )
+
+    assert response.status_code == 202
+    assert response.data["status"] == "failed"
+    assert "High-fidelity PDF conversion is unavailable" in str(response.data.get("error"))
+
+
+@pytest.mark.django_db
+def test_upload_conversion_does_not_raise_500_when_conversion_fails(api_client, monkeypatch):
+    from pdf_web.operations import services
+
+    monkeypatch.setattr(services, "_convert_pdf_with_libreoffice", lambda *_args, **_kwargs: None)
+
+    response = api_client.post(
+        "/api/convert/pdf-to-word/",
+        {"file": make_pdf_file("guest-input.pdf")},
+        format="multipart",
+    )
+
+    assert response.status_code == 202
+    assert response.data["status"] == "failed"
+    assert response.data.get("error")
+
+
+@pytest.mark.django_db
+def test_guest_pdf_to_jpg_conversion_renders_first_page(api_client):
+    response = api_client.post(
+        "/api/convert/pdf-to-jpg/",
+        {"file": make_pdf_file("guest-input.pdf")},
+        format="multipart",
+    )
+    assert response.status_code == 202
+    from pdf_web.operations.models import ConversionJob
+
+    job = ConversionJob.objects.get(id=response.data["id"])
+    with job.result_version.file.open("rb") as handle:
+        output = handle.read()
+    assert output.startswith(b"\xff\xd8\xff")
+    assert len(output) > 500
+
+
+@pytest.mark.django_db
+def test_guest_excel_to_pdf_conversion_upload_contract(api_client):
+    response = api_client.post(
+        "/api/convert/excel-to-pdf/",
+        {"file": make_pdf_file("guest-input.xlsx")},
+        format="multipart",
+    )
+    assert response.status_code == 202
+    assert {"id", "status", "progress", "result_url", "preview_url"}.issubset(set(response.data.keys()))
+    assert str(response.data["result_url"]).lower().endswith(".pdf")
+    assert str(response.data["preview_url"]).lower().endswith(".pdf")
+
+
+@pytest.mark.django_db
+def test_guest_jpg_to_pdf_generates_real_pdf(api_client):
+    response = api_client.post(
+        "/api/convert/jpg-to-pdf/",
+        {"file": make_jpg_file("chart.jpg")},
+        format="multipart",
+    )
+    assert response.status_code == 202
+    from pdf_web.operations.models import ConversionJob
+
+    job = ConversionJob.objects.get(id=response.data["id"])
+    assert str(job.result_version.file.name).lower().endswith(".pdf")
+    with job.result_version.file.open("rb") as handle:
+        assert handle.read(4) == b"%PDF"
+
+
+@pytest.mark.django_db
+def test_guest_docx_to_pdf_contains_extracted_text(api_client):
+    response = api_client.post("/api/convert/word-to-pdf/", {"file": make_docx_file()}, format="multipart")
+    assert response.status_code == 202
+    from pdf_web.operations.models import ConversionJob
+
+    job = ConversionJob.objects.get(id=response.data["id"])
+    with job.result_version.file.open("rb") as handle:
+        output = handle.read()
+    assert output.startswith(b"%PDF")
+    assert b"Hello DOCX content" in output
+
+
+@pytest.mark.django_db
+def test_guest_xlsx_to_pdf_contains_extracted_text(api_client):
+    response = api_client.post("/api/convert/excel-to-pdf/", {"file": make_xlsx_file(), "allow_text_fallback": "true"}, format="multipart")
+    assert response.status_code == 202
+    from pdf_web.operations.models import ConversionJob
+
+    job = ConversionJob.objects.get(id=response.data["id"])
+    with job.result_version.file.open("rb") as handle:
+        output = handle.read()
+    assert output.startswith(b"%PDF")
+    assert b"Revenue" in output
+
+
+@pytest.mark.django_db
+def test_guest_pptx_to_pdf_contains_extracted_text(api_client):
+    response = api_client.post("/api/convert/ppt-to-pdf/", {"file": make_pptx_file()}, format="multipart")
+    assert response.status_code == 202
+    from pdf_web.operations.models import ConversionJob
+
+    job = ConversionJob.objects.get(id=response.data["id"])
+    with job.result_version.file.open("rb") as handle:
+        output = handle.read()
+    assert output.startswith(b"%PDF")
+    assert b"Pitch Deck Slide" in output
+
+
+@pytest.mark.django_db
+def test_guest_xlsx_to_pdf_requires_high_fidelity_by_default(api_client, monkeypatch):
+    from pdf_web.operations import services
+
+    monkeypatch.setattr(services, "_convert_excel_with_libreoffice", lambda *_args, **_kwargs: None)
+
+    response = api_client.post("/api/convert/excel-to-pdf/", {"file": make_xlsx_file()}, format="multipart")
+
+    assert response.status_code == 202
+    assert response.data["status"] == "failed"
+    assert "High-fidelity Excel to PDF conversion is unavailable" in str(response.data.get("error"))
