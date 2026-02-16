@@ -3,6 +3,7 @@ from __future__ import annotations
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
+from django.core.files.uploadedfile import UploadedFile
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny
@@ -154,7 +155,7 @@ class BaseUploadConversionView(APIView):
             requested_by=created_by,
             target_format=target_format,
             source_mime_type=source_mime_type,
-            params=request.data.dict(),
+            params={k: v for k, v in request.data.items() if not isinstance(v, UploadedFile)},
         )
         # Run once inline to support immediate preview UX, then return serializer contract.
         process_conversion_job(job.id)

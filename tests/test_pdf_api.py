@@ -331,3 +331,14 @@ def test_guest_pdf_to_ppt_conversion_upload_contract(api_client):
     )
     assert response.status_code == 202
     assert {"id", "status", "progress", "result_url", "preview_url"}.issubset(set(response.data.keys()))
+
+
+@pytest.mark.django_db
+def test_guest_excel_to_pdf_conversion_upload_contract(api_client):
+    response = api_client.post(
+        "/api/convert/excel-to-pdf/",
+        {"file": make_pdf_file("guest-input.xlsx")},
+        format="multipart",
+    )
+    assert response.status_code == 202
+    assert {"id", "status", "progress", "result_url", "preview_url"}.issubset(set(response.data.keys()))
