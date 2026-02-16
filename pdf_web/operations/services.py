@@ -50,21 +50,37 @@ def clone_version(version: DocumentVersion, *, created_by=None, processing_state
 
 
 def _minimal_pdf_bytes(text: str) -> bytes:
-    safe = text.replace("(", "[").replace(")", "]")
+    safe = text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
     content = f"BT /F1 12 Tf 72 720 Td ({safe}) Tj ET"
     stream = content.encode("latin-1", errors="ignore")
-    return (
-        b"%PDF-1.4\n"
-        b"1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj\n"
-        b"2 0 obj<< /Type /Pages /Kids [3 0 R] /Count 1 >>endobj\n"
-        b"3 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>endobj\n"
-        + f"4 0 obj<< /Length {len(stream)} >>stream\n".encode("ascii")
-        + stream
-        + b"\nendstream endobj\n"
-        + b"xref\n0 5\n0000000000 65535 f\n"
-        + b"0000000010 00000 n\n0000000060 00000 n\n0000000120 00000 n\n0000000220 00000 n\n"
-        + b"trailer<< /Root 1 0 R /Size 5 >>\nstartxref\n320\n%%EOF"
+
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
+        b"<< /Length " + str(len(stream)).encode("ascii") + b" >>\nstream\n" + stream + b"\nendstream",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]
+
+    out = BytesIO()
+    out.write(b"%PDF-1.4\n")
+    offsets = [0]
+    for idx, obj in enumerate(objects, start=1):
+        offsets.append(out.tell())
+        out.write(f"{idx} 0 obj\n".encode("ascii"))
+        out.write(obj)
+        out.write(b"\nendobj\n")
+
+    xref_pos = out.tell()
+    out.write(f"xref\n0 {len(objects)+1}\n".encode("ascii"))
+    out.write(b"0000000000 65535 f \n")
+    for offset in offsets[1:]:
+        out.write(f"{offset:010d} 00000 n \n".encode("ascii"))
+
+    out.write(
+        f"trailer\n<< /Root 1 0 R /Size {len(objects)+1} >>\nstartxref\n{xref_pos}\n%%EOF".encode("ascii")
     )
+    return out.getvalue()
 
 
 def _extract_xml_text(xml_data: bytes) -> str:
@@ -126,7 +142,10 @@ def _pdf_from_upload(version: DocumentVersion) -> bytes:
 
     text_snippet = source_bytes[:4096].decode("utf-8", errors="ignore").strip()
     if not text_snippet:
-        text_snippet = f"Converted to PDF from {version.file.name}"
+        if source_name.endswith(".doc"):
+            text_snippet = "Converted Word document"
+        else:
+            text_snippet = f"Converted to PDF from {version.file.name}"
     return _minimal_pdf_bytes(text_snippet[:400])
 
 
