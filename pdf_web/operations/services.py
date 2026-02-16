@@ -4,6 +4,8 @@ import secrets
 from datetime import timedelta
 from io import BytesIO
 from pathlib import Path
+import re
+import zipfile
 
 from django.contrib.auth.hashers import make_password
 from django.core.files.base import ContentFile
@@ -65,6 +67,36 @@ def _minimal_pdf_bytes(text: str) -> bytes:
     )
 
 
+def _extract_xml_text(xml_data: bytes) -> str:
+    text = re.sub(rb"<[^>]+>", b" ", xml_data)
+    text = re.sub(rb"\s+", b" ", text).strip()
+    return text.decode("utf-8", errors="ignore")
+
+
+def _extract_ooxml_text(source_bytes: bytes, source_name: str) -> str:
+    try:
+        with zipfile.ZipFile(BytesIO(source_bytes)) as archive:
+            candidates: list[str]
+            if source_name.endswith(".docx"):
+                candidates = ["word/document.xml"]
+            elif source_name.endswith(".xlsx"):
+                candidates = [
+                    "xl/sharedStrings.xml",
+                    *[n for n in archive.namelist() if n.startswith("xl/worksheets/") and n.endswith(".xml")],
+                ]
+            elif source_name.endswith(".pptx"):
+                candidates = [n for n in archive.namelist() if n.startswith("ppt/slides/") and n.endswith(".xml")]
+            else:
+                candidates = []
+            fragments: list[str] = []
+            for path in candidates[:12]:
+                if path in archive.namelist():
+                    fragments.append(_extract_xml_text(archive.read(path)))
+            return " ".join(f for f in fragments if f).strip()
+    except Exception:  # noqa: BLE001
+        return ""
+
+
 def _pdf_from_upload(version: DocumentVersion) -> bytes:
     if not version.file:
         return _minimal_pdf_bytes("Converted to PDF")
@@ -73,11 +105,9 @@ def _pdf_from_upload(version: DocumentVersion) -> bytes:
     version.file.close()
     source_name = version.file.name.lower()
 
-    # Preserve PDF uploads.
     if source_name.endswith(".pdf"):
         return source_bytes
 
-    # Convert images into real image-based PDF pages.
     if source_name.endswith((".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff", ".gif")):
         try:
             from PIL import Image
@@ -90,7 +120,10 @@ def _pdf_from_upload(version: DocumentVersion) -> bytes:
         except Exception:  # noqa: BLE001
             pass
 
-    # Best-effort fallback for office-like files without external converters.
+    ooxml_text = _extract_ooxml_text(source_bytes, source_name)
+    if ooxml_text:
+        return _minimal_pdf_bytes(ooxml_text[:1200])
+
     text_snippet = source_bytes[:4096].decode("utf-8", errors="ignore").strip()
     if not text_snippet:
         text_snippet = f"Converted to PDF from {version.file.name}"

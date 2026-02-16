@@ -1,4 +1,5 @@
 from io import BytesIO
+import zipfile
 import pytest
 from PIL import Image
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -30,6 +31,42 @@ def make_jpg_file(name="sample.jpg"):
     buf = BytesIO()
     Image.new("RGB", (200, 100), color=(52, 120, 220)).save(buf, format="JPEG")
     return SimpleUploadedFile(name, buf.getvalue(), content_type="image/jpeg")
+
+
+def make_ooxml_file(name: str, files: dict[str, str], content_type: str):
+    buffer = BytesIO()
+    with zipfile.ZipFile(buffer, mode="w") as archive:
+        archive.writestr("[Content_Types].xml", '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"></Types>')
+        for path, xml in files.items():
+            archive.writestr(path, xml)
+    return SimpleUploadedFile(name, buffer.getvalue(), content_type=content_type)
+
+
+def make_docx_file(name="sample.docx"):
+    return make_ooxml_file(
+        name,
+        {"word/document.xml": "<w:document><w:body><w:p><w:t>Hello DOCX content</w:t></w:p></w:body></w:document>"},
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
+
+
+def make_xlsx_file(name="sample.xlsx"):
+    return make_ooxml_file(
+        name,
+        {
+            "xl/sharedStrings.xml": "<sst><si><t>Revenue</t></si><si><t>Quarterly Sheet</t></si></sst>",
+            "xl/worksheets/sheet1.xml": "<worksheet><sheetData><row><c><v>1</v></c></row></sheetData></worksheet>",
+        },
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+
+def make_pptx_file(name="sample.pptx"):
+    return make_ooxml_file(
+        name,
+        {"ppt/slides/slide1.xml": "<p:sld><p:cSld><p:spTree><a:t>Pitch Deck Slide</a:t></p:spTree></p:cSld></p:sld>"},
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    )
 @pytest.fixture
 def workspace(user):
     workspace = Workspace.objects.create(name="Acme", owner=user)
@@ -369,3 +406,42 @@ def test_guest_jpg_to_pdf_generates_real_pdf(api_client):
     assert str(job.result_version.file.name).lower().endswith(".pdf")
     with job.result_version.file.open("rb") as handle:
         assert handle.read(4) == b"%PDF"
+
+
+@pytest.mark.django_db
+def test_guest_docx_to_pdf_contains_extracted_text(api_client):
+    response = api_client.post("/api/convert/word-to-pdf/", {"file": make_docx_file()}, format="multipart")
+    assert response.status_code == 202
+    from pdf_web.operations.models import ConversionJob
+
+    job = ConversionJob.objects.get(id=response.data["id"])
+    with job.result_version.file.open("rb") as handle:
+        output = handle.read()
+    assert output.startswith(b"%PDF")
+    assert b"Hello DOCX content" in output
+
+
+@pytest.mark.django_db
+def test_guest_xlsx_to_pdf_contains_extracted_text(api_client):
+    response = api_client.post("/api/convert/excel-to-pdf/", {"file": make_xlsx_file()}, format="multipart")
+    assert response.status_code == 202
+    from pdf_web.operations.models import ConversionJob
+
+    job = ConversionJob.objects.get(id=response.data["id"])
+    with job.result_version.file.open("rb") as handle:
+        output = handle.read()
+    assert output.startswith(b"%PDF")
+    assert b"Revenue" in output
+
+
+@pytest.mark.django_db
+def test_guest_pptx_to_pdf_contains_extracted_text(api_client):
+    response = api_client.post("/api/convert/ppt-to-pdf/", {"file": make_pptx_file()}, format="multipart")
+    assert response.status_code == 202
+    from pdf_web.operations.models import ConversionJob
+
+    job = ConversionJob.objects.get(id=response.data["id"])
+    with job.result_version.file.open("rb") as handle:
+        output = handle.read()
+    assert output.startswith(b"%PDF")
+    assert b"Pitch Deck Slide" in output
