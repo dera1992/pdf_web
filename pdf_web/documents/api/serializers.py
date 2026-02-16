@@ -82,6 +82,14 @@ class DocumentCreateSerializer(serializers.ModelSerializer):
         fields = ["id", "workspace", "title", "file"]
         read_only_fields = ["id"]
 
+    def validate_file(self, value):
+        max_size = getattr(settings, "PDF_MAX_UPLOAD_SIZE", 25 * 1024 * 1024)
+        if value.size > max_size:
+            raise serializers.ValidationError("File too large.")
+        if value.content_type not in {"application/pdf", "application/x-pdf"}:
+            raise serializers.ValidationError("Only PDF files are allowed.")
+        return value
+
 
 class DocumentPageAssetSerializer(serializers.ModelSerializer):
     thumb_url = serializers.SerializerMethodField()

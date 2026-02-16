@@ -20,6 +20,8 @@ import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { ChangePasswordPage } from './pages/ChangePasswordPage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { SocialAuthCallbackPage } from './pages/SocialAuthCallbackPage'
+import { ToolsPage } from './pages/ToolsPage'
+import { ToolDetailPage } from './pages/ToolDetailPage'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { useAuthRefresh } from './hooks/useAuthRefresh'
 
@@ -43,6 +45,8 @@ const AppRoutes = () => {
         <Route path="/signup" element={<RegisterPage />} />
         <Route path="/pricing" element={<PricingPage />} />
         <Route path="/docs" element={<DocsPage />} />
+        <Route path="/tools" element={<ToolsPage />} />
+        <Route path="/tools/:toolId" element={<ToolDetailPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route
           element={
