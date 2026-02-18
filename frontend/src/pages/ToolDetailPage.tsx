@@ -1,5 +1,5 @@
 import { DragEvent, FormEvent, useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import apiClient from '../api/client'
 import { Card } from '../components/ui/Card'
 import { getToolById } from '../data/pdfTools'
@@ -19,8 +19,9 @@ const isPreviewable = (name: string | undefined) => {
 export const ToolDetailPage = () => {
   const { toolId } = useParams<{ toolId: string }>()
   const tool = useMemo(() => getToolById(toolId ?? ''), [toolId])
-  const [versionId, setVersionId] = useState('')
-  const [workspaceId, setWorkspaceId] = useState('')
+  const [searchParams] = useSearchParams()
+  const [versionId, setVersionId] = useState(searchParams.get('versionId') ?? '')
+  const [workspaceId, setWorkspaceId] = useState(searchParams.get('workspaceId') ?? '')
   const [payloadText, setPayloadText] = useState(tool?.payloadHint ?? '{}')
   const [file, setFile] = useState<File | null>(null)
   const [isDragging, setIsDragging] = useState(false)
