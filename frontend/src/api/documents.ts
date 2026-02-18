@@ -1,4 +1,5 @@
 import apiClient from './client'
+import { getStoredAccessToken } from '../store/authStore'
 import type { Document } from '../types/api'
 
 export const documentsApi = {
@@ -15,6 +16,19 @@ export const documentsApi = {
   async getVersionDownload(versionId: string) {
     const { data } = await apiClient.get<{ url: string }>(`/versions/${versionId}/download/`)
     return data
+  },
+
+  async getVersionBlobUrl(versionId: string) {
+    const { url } = await this.getVersionDownload(versionId)
+    const token = getStoredAccessToken()
+    const response = await fetch(url, {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      credentials: 'include'
+    })
+    if (!response.ok) {
+      throw new Error('Failed to load document binary.')
+    }
+    return URL.createObjectURL(await response.blob())
   },
   async create(workspaceId: string, payload: FormData) {
     const { data } = await apiClient.post<Document>('/documents/', payload)
