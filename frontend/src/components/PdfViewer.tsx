@@ -203,28 +203,6 @@ export const PdfViewer = ({ url, className }: PdfViewerProps) => {
     }
   }, [setPageCount, url])
 
-  useEffect(() => {
-    if (!pdf) return
-    let cancelled = false
-    const loadSizes = async () => {
-      const next = new Map<number, { width: number; height: number }>()
-      const sizePromises = Array.from({ length: pdf.numPages }).map(async (_, index) => {
-        const pageNumber = index + 1
-        const pdfPage = await pdf.getPage(pageNumber)
-        const viewport = pdfPage.getViewport({ scale: 1 })
-        next.set(pageNumber, { width: viewport.width, height: viewport.height })
-      })
-      await Promise.all(sizePromises)
-      if (!cancelled) {
-        setPageSizes(next)
-      }
-    }
-    loadSizes().catch(() => undefined)
-    return () => {
-      cancelled = true
-    }
-  }, [pdf])
-
   const rowVirtualizer = useVirtualizer({
     count: pageCount,
     getScrollElement: () => parentRef.current,
@@ -237,6 +215,58 @@ export const PdfViewer = ({ url, className }: PdfViewerProps) => {
   })
 
   const visiblePages = rowVirtualizer.getVirtualItems().map((item) => item.index + 1)
+
+  useEffect(() => {
+    if (!pdf) return
+    let cancelled = false
+
+    const pagesToMeasure = new Set<number>()
+    visiblePages.forEach((pageNumber) => {
+      pagesToMeasure.add(pageNumber)
+      pagesToMeasure.add(pageNumber - 1)
+      pagesToMeasure.add(pageNumber + 1)
+    })
+
+    const missingPages = Array.from(pagesToMeasure).filter(
+      (pageNumber) =>
+        pageNumber >= 1 && pageNumber <= pdf.numPages && !pageSizes.has(pageNumber)
+    )
+
+    if (missingPages.length === 0) {
+      return () => {
+        cancelled = true
+      }
+    }
+
+    const loadVisibleSizes = async () => {
+      const resolved = await Promise.all(
+        missingPages.map(async (pageNumber) => {
+          const pdfPage = await pdf.getPage(pageNumber)
+          const viewport = pdfPage.getViewport({ scale: 1 })
+          return {
+            pageNumber,
+            size: { width: viewport.width, height: viewport.height }
+          }
+        })
+      )
+
+      if (cancelled) return
+
+      setPageSizes((previous) => {
+        const next = new Map(previous)
+        resolved.forEach(({ pageNumber, size }) => {
+          next.set(pageNumber, size)
+        })
+        return next
+      })
+    }
+
+    loadVisibleSizes().catch(() => undefined)
+
+    return () => {
+      cancelled = true
+    }
+  }, [pageSizes, pdf, visiblePages])
 
   useEffect(() => {
     if (!pdf) return
