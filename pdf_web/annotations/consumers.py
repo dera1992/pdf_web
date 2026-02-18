@@ -4,18 +4,17 @@ from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from django.utils import timezone
 
-from pdf_web.annotations.models import CollabEvent
-from pdf_web.annotations.models import PresenceSession
-from pdf_web.annotations.models import Annotation
-from pdf_web.annotations.models import Comment
-from pdf_web.documents.models import Document
-from pdf_web.permissions import get_workspace_role
-from pdf_web.permissions import has_role
-from pdf_web.documents.models import WorkspaceRole
-from pdf_web.users.models import User
-
 from pdf_web.annotations.api.serializers import AnnotationSerializer
 from pdf_web.annotations.api.serializers import CommentSerializer
+from pdf_web.annotations.models import Annotation
+from pdf_web.annotations.models import CollabEvent
+from pdf_web.annotations.models import Comment
+from pdf_web.annotations.models import PresenceSession
+from pdf_web.documents.models import Document
+from pdf_web.documents.models import WorkspaceRole
+from pdf_web.permissions import get_workspace_role
+from pdf_web.permissions import has_role
+from pdf_web.users.models import User
 
 
 class DocumentCollaborationConsumer(AsyncJsonWebsocketConsumer):
@@ -31,6 +30,9 @@ class DocumentCollaborationConsumer(AsyncJsonWebsocketConsumer):
         "presence.heartbeat",
         "cursor.updated",
     }
+
+    mutation_roles = [WorkspaceRole.EDITOR, WorkspaceRole.ADMIN, WorkspaceRole.OWNER]
+    comment_roles = [WorkspaceRole.COMMENTER, WorkspaceRole.EDITOR, WorkspaceRole.ADMIN, WorkspaceRole.OWNER]
 
     async def connect(self):
         self.document_id = self.scope["url_route"]["kwargs"]["document_id"]
@@ -62,11 +64,22 @@ class DocumentCollaborationConsumer(AsyncJsonWebsocketConsumer):
         event = content.get("event", {})
         if not event_type or event_type not in self.allowed_events:
             return
+
         user = self.scope.get("user")
-        if event_type == "presence.heartbeat" and user and user.is_authenticated:
+        if not user or not user.is_authenticated:
+            await self._send_error("unauthenticated", "Authentication is required.")
+            return
+
+        if event_type == "presence.heartbeat":
             await self._update_presence()
             await self._broadcast_presence()
             return
+
+        is_valid, detail = await self._validate_event(user.id, event_type, event)
+        if not is_valid:
+            await self._send_error("validation_error", detail)
+            return
+
         await self._log_event(event_type, event)
         await self.channel_layer.group_send(
             self.group_name,
@@ -74,12 +87,23 @@ class DocumentCollaborationConsumer(AsyncJsonWebsocketConsumer):
                 "type": "collab.message",
                 "event_type": event_type,
                 "event": event,
-                "user_id": user.id if user else None,
+                "user_id": user.id,
             },
         )
 
     async def collab_message(self, event):
         await self.send_json(event)
+
+    async def _send_error(self, code: str, detail: str) -> None:
+        await self.send_json(
+            {
+                "event_type": "collaboration.error",
+                "event": {
+                    "code": code,
+                    "detail": detail,
+                },
+            }
+        )
 
     @database_sync_to_async
     def _create_presence(self, user_id: int) -> None:
@@ -113,7 +137,17 @@ class DocumentCollaborationConsumer(AsyncJsonWebsocketConsumer):
     def _has_document_access(self, user_id: int) -> bool:
         document = Document.objects.get(pk=self.document_id)
         user = User.objects.get(pk=user_id)
-        return has_role(user, document.workspace, [WorkspaceRole.VIEWER, WorkspaceRole.EDITOR, WorkspaceRole.ADMIN, WorkspaceRole.OWNER])
+        return has_role(
+            user,
+            document.workspace,
+            [
+                WorkspaceRole.VIEWER,
+                WorkspaceRole.COMMENTER,
+                WorkspaceRole.EDITOR,
+                WorkspaceRole.ADMIN,
+                WorkspaceRole.OWNER,
+            ],
+        )
 
     @database_sync_to_async
     def _get_initial_state(self, user_id: int) -> dict:
@@ -160,3 +194,61 @@ class DocumentCollaborationConsumer(AsyncJsonWebsocketConsumer):
                 "event": {"users": users},
             },
         )
+
+    @database_sync_to_async
+    def _validate_event(self, user_id: int, event_type: str, event: dict) -> tuple[bool, str]:
+        document = Document.objects.get(pk=self.document_id)
+        user = User.objects.get(pk=user_id)
+
+        if event_type in {"annotation.created", "annotation.updated", "annotation.deleted"}:
+            if not has_role(user, document.workspace, self.mutation_roles):
+                return False, "Insufficient permissions for annotation mutation events."
+
+        if event_type in {"comment.created", "comment.replied"}:
+            if not has_role(user, document.workspace, self.comment_roles):
+                return False, "Insufficient permissions for comment mutation events."
+
+        if event_type == "annotation.created":
+            serializer = AnnotationSerializer(data=event)
+            if not serializer.is_valid():
+                return False, str(serializer.errors)
+
+        if event_type == "annotation.updated":
+            annotation_id = event.get("id")
+            expected_revision = event.get("revision_number")
+            if not annotation_id or expected_revision is None:
+                return False, "annotation.updated requires id and revision_number."
+            annotation = Annotation.objects.filter(pk=annotation_id, document=document, is_deleted=False).first()
+            if not annotation:
+                return False, "Annotation was not found for this document."
+            current_revision = annotation.revisions.count()
+            if int(expected_revision) != current_revision:
+                return False, f"Stale revision. current_revision={current_revision}."
+
+        if event_type == "annotation.deleted":
+            annotation_id = event.get("id")
+            if not annotation_id:
+                return False, "annotation.deleted requires id."
+            exists = Annotation.objects.filter(pk=annotation_id, document=document, is_deleted=False).exists()
+            if not exists:
+                return False, "Annotation was not found for this document."
+
+        if event_type == "comment.created":
+            serializer = CommentSerializer(data=event)
+            if not serializer.is_valid():
+                return False, str(serializer.errors)
+
+        if event_type == "comment.replied":
+            parent_id = event.get("parent")
+            if not parent_id:
+                return False, "comment.replied requires parent id."
+            parent_exists = Comment.objects.filter(pk=parent_id, document=document, is_deleted=False).exists()
+            if not parent_exists:
+                return False, "Reply parent comment was not found for this document."
+
+        if event_type == "document.page.changed":
+            page_number = event.get("page_number")
+            if page_number is None:
+                return False, "document.page.changed requires page_number."
+
+        return True, ""

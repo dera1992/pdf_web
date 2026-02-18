@@ -10,6 +10,7 @@ class WorkspaceRole(models.TextChoices):
     OWNER = "owner", "Owner"
     ADMIN = "admin", "Admin"
     EDITOR = "editor", "Editor"
+    COMMENTER = "commenter", "Commenter"
     VIEWER = "viewer", "Viewer"
 
 
