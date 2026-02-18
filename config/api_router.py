@@ -16,6 +16,7 @@ from pdf_web.documents.api.views import (
 # Annotations
 from pdf_web.annotations.api.views import (
     AnnotationViewSet,
+    CollaborationEventExportView,
     CollaborationEventListView,
     CommentViewSet,
     DocumentCommentsView,
@@ -108,5 +109,10 @@ urlpatterns = [
         "documents/<int:document_id>/collaboration/events/",
         CollaborationEventListView.as_view(),
         name="collaboration-events",
+    ),
+    path(
+        "documents/<int:document_id>/collaboration/events/export/",
+        CollaborationEventExportView.as_view(),
+        name="collaboration-events-export",
     ),
 ]

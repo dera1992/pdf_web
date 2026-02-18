@@ -6,6 +6,8 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from rest_framework.test import APIClient
 
 from pdf_web.annotations.models import Annotation
+from pdf_web.annotations.models import CollabEvent
+from pdf_web.annotations.models import Comment
 from pdf_web.audit.models import AuditLog
 from pdf_web.documents.models import Document
 from pdf_web.documents.models import DocumentVersion
@@ -145,7 +147,7 @@ def test_permissions_for_annotations_and_encrypt(api_client, user, editor, viewe
     api_client.force_authenticate(user=viewer)
     response = api_client.post(
         f"/api/versions/{version.id}/annotations/",
-        {"page_number": 1, "type": "note", "payload": {"text": "Hi"}},
+        {"page_number": 1, "type": "highlight", "payload": {"rects": [{"x": 1, "y": 2, "width": 10, "height": 5}]}},
         format="json",
     )
     assert response.status_code == 403
@@ -153,7 +155,7 @@ def test_permissions_for_annotations_and_encrypt(api_client, user, editor, viewe
     api_client.force_authenticate(user=editor)
     response = api_client.post(
         f"/api/versions/{version.id}/annotations/",
-        {"page_number": 1, "type": "note", "payload": {"text": "Hi"}},
+        {"page_number": 1, "type": "highlight", "payload": {"rects": [{"x": 1, "y": 2, "width": 10, "height": 5}]}},
         format="json",
     )
     assert response.status_code == 201
@@ -196,7 +198,7 @@ def test_annotation_crud_and_bulk(api_client, user, workspace):
     api_client.force_authenticate(user=user)
     response = api_client.post(
         f"/api/versions/{version.id}/annotations/",
-        {"page_number": 1, "type": "note", "payload": {"text": "Hi"}},
+        {"page_number": 1, "type": "highlight", "payload": {"rects": [{"x": 1, "y": 2, "width": 10, "height": 5}]}},
         format="json",
     )
     assert response.status_code == 201
@@ -204,14 +206,14 @@ def test_annotation_crud_and_bulk(api_client, user, workspace):
 
     response = api_client.patch(
         f"/api/annotations/{annotation_id}/",
-        {"payload": {"text": "Updated"}},
+        {"payload": {"rects": [{"x": 2, "y": 3, "width": 9, "height": 4}]}, "revision_number": 1},
         format="json",
     )
     assert response.status_code == 200
 
     response = api_client.post(
         f"/api/versions/{version.id}/annotations/bulk/",
-        {"items": [{"page_number": 1, "type": "note", "payload": {"text": "Bulk"}}]},
+        {"items": [{"page_number": 1, "type": "highlight", "payload": {"rects": [{"x": 5, "y": 5, "width": 2, "height": 2}]}}]},
         format="json",
     )
     assert response.status_code == 201
@@ -609,3 +611,95 @@ def test_guest_xlsx_to_pdf_requires_high_fidelity_by_default(api_client, monkeyp
     assert response.status_code == 202
     assert response.data["status"] == "failed"
     assert "High-fidelity Excel to PDF conversion is unavailable" in str(response.data.get("error"))
+
+
+@pytest.fixture
+def commenter(user, db):
+    from pdf_web.users.tests.factories import UserFactory
+
+    commenter = UserFactory()
+    return commenter
+
+
+@pytest.mark.django_db
+def test_commenter_role_permissions_and_collaboration_export(api_client, user, commenter, workspace):
+    WorkspaceMember.objects.create(workspace=workspace, user=commenter, role=WorkspaceRole.COMMENTER)
+    document, version = create_document(workspace, user)
+
+    api_client.force_authenticate(user=commenter)
+
+    comment_response = api_client.post(
+        f"/api/documents/{document.id}/comments/",
+        {"body": "Comment from commenter"},
+        format="json",
+    )
+    assert comment_response.status_code == 201
+
+    annotation_response = api_client.post(
+        f"/api/versions/{version.id}/annotations/",
+        {"page_number": 1, "type": "highlight", "payload": {"rects": [{"x": 1, "y": 1, "width": 2, "height": 2}]}},
+        format="json",
+    )
+    assert annotation_response.status_code == 403
+
+    CollabEvent.objects.create(document=document, user=user, event_type="annotation.created", event={"id": 1})
+
+    export_response = api_client.get(f"/api/documents/{document.id}/collaboration/events/export/")
+    assert export_response.status_code == 403
+
+    api_client.force_authenticate(user=user)
+    export_response = api_client.get(f"/api/documents/{document.id}/collaboration/events/export/")
+    assert export_response.status_code == 200
+    assert export_response["Content-Disposition"].endswith('.json"')
+    assert export_response.data["count"] >= 1
+
+
+@pytest.mark.django_db
+def test_comment_update_conflict_returns_current_state(api_client, user, workspace):
+    document, _ = create_document(workspace, user)
+    api_client.force_authenticate(user=user)
+
+    create_response = api_client.post(
+        f"/api/documents/{document.id}/comments/",
+        {"body": "Original"},
+        format="json",
+    )
+    assert create_response.status_code == 201
+    comment_id = create_response.data["id"]
+
+    stale_response = api_client.patch(
+        f"/api/comments/{comment_id}/",
+        {"body": "Stale", "revision_number": 0},
+        format="json",
+    )
+    assert stale_response.status_code == 409
+    assert stale_response.data["current_revision"] == 1
+
+
+@pytest.mark.django_db
+def test_annotation_update_requires_matching_revision(api_client, user, workspace):
+    document, version = create_document(workspace, user)
+    api_client.force_authenticate(user=user)
+
+    create_response = api_client.post(
+        f"/api/versions/{version.id}/annotations/",
+        {"page_number": 1, "type": "highlight", "payload": {"rects": [{"x": 1, "y": 2, "width": 10, "height": 5}]}},
+        format="json",
+    )
+    assert create_response.status_code == 201
+    annotation_id = create_response.data["id"]
+
+    response = api_client.patch(
+        f"/api/annotations/{annotation_id}/",
+        {"payload": {"rects": [{"x": 3, "y": 3, "width": 2, "height": 2}]}, "revision_number": 1},
+        format="json",
+    )
+    assert response.status_code == 200
+
+    stale_response = api_client.patch(
+        f"/api/annotations/{annotation_id}/",
+        {"payload": {"rects": [{"x": 3, "y": 3, "width": 4, "height": 4}]}, "revision_number": 1},
+        format="json",
+    )
+    assert stale_response.status_code == 409
+    assert stale_response.data["current_revision"] == 2

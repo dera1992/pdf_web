@@ -113,7 +113,7 @@ class VersionAnnotationsView(APIView):
 
     def get(self, request, version_id: int):
         version = get_object_or_404(DocumentVersion, pk=version_id)
-        require_role(request.user, version.document.workspace, [WorkspaceRole.VIEWER, WorkspaceRole.EDITOR, WorkspaceRole.ADMIN, WorkspaceRole.OWNER])
+        require_role(request.user, version.document.workspace, [WorkspaceRole.VIEWER, WorkspaceRole.COMMENTER, WorkspaceRole.EDITOR, WorkspaceRole.ADMIN, WorkspaceRole.OWNER])
         page = request.query_params.get("page")
         queryset = version.annotations.filter(is_deleted=False)
         if page:
@@ -199,7 +199,7 @@ class CommentViewSet(ModelViewSet):
         require_role(
             request.user,
             instance.document.workspace,
-            [WorkspaceRole.EDITOR, WorkspaceRole.ADMIN, WorkspaceRole.OWNER],
+            [WorkspaceRole.COMMENTER, WorkspaceRole.EDITOR, WorkspaceRole.ADMIN, WorkspaceRole.OWNER],
         )
         expected_revision = request.data.get("revision_number")
         current_revision = instance.revisions.count()
@@ -245,7 +245,7 @@ class CommentViewSet(ModelViewSet):
         require_role(
             self.request.user,
             instance.document.workspace,
-            [WorkspaceRole.EDITOR, WorkspaceRole.ADMIN, WorkspaceRole.OWNER],
+            [WorkspaceRole.COMMENTER, WorkspaceRole.EDITOR, WorkspaceRole.ADMIN, WorkspaceRole.OWNER],
         )
         instance.is_deleted = True
         instance.save(update_fields=["is_deleted"])
@@ -266,7 +266,7 @@ class DocumentCommentsView(APIView):
         require_role(
             request.user,
             document.workspace,
-            [WorkspaceRole.VIEWER, WorkspaceRole.EDITOR, WorkspaceRole.ADMIN, WorkspaceRole.OWNER],
+            [WorkspaceRole.VIEWER, WorkspaceRole.COMMENTER, WorkspaceRole.EDITOR, WorkspaceRole.ADMIN, WorkspaceRole.OWNER],
         )
         queryset = document.comments.filter(is_deleted=False)
         serializer = CommentSerializer(queryset, many=True)
@@ -277,7 +277,7 @@ class DocumentCommentsView(APIView):
         require_role(
             request.user,
             document.workspace,
-            [WorkspaceRole.EDITOR, WorkspaceRole.ADMIN, WorkspaceRole.OWNER],
+            [WorkspaceRole.COMMENTER, WorkspaceRole.EDITOR, WorkspaceRole.ADMIN, WorkspaceRole.OWNER],
         )
         serializer = CommentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -306,7 +306,7 @@ class CollaborationEventListView(APIView):
         require_role(
             request.user,
             document.workspace,
-            [WorkspaceRole.VIEWER, WorkspaceRole.EDITOR, WorkspaceRole.ADMIN, WorkspaceRole.OWNER],
+            [WorkspaceRole.VIEWER, WorkspaceRole.COMMENTER, WorkspaceRole.EDITOR, WorkspaceRole.ADMIN, WorkspaceRole.OWNER],
         )
         queryset = CollabEvent.objects.filter(document=document)
         since = request.query_params.get("since")
@@ -320,4 +320,35 @@ class CollaborationEventListView(APIView):
                 "events": serializer.data,
                 "role": get_workspace_role(request.user, document.workspace),
             }
+        )
+
+
+class CollaborationEventExportView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, document_id: int):
+        document = get_object_or_404(Document, pk=document_id)
+        require_role(
+            request.user,
+            document.workspace,
+            [WorkspaceRole.ADMIN, WorkspaceRole.OWNER],
+        )
+
+        queryset = CollabEvent.objects.filter(document=document).order_by("created_at")
+        since = request.query_params.get("since")
+        if since:
+            parsed = parse_datetime(since)
+            if parsed:
+                queryset = queryset.filter(created_at__gt=parsed)
+
+        events = CollabEventSerializer(queryset[:5000], many=True).data
+        return Response(
+            {
+                "document_id": document.id,
+                "count": len(events),
+                "events": events,
+            },
+            headers={
+                "Content-Disposition": f'attachment; filename="document-{document.id}-collaboration-events.json"',
+            },
         )
