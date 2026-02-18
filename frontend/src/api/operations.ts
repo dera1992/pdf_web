@@ -1,24 +1,27 @@
 import apiClient from './client'
 
+type OperationJobResponse = {
+  id: number
+  status: string
+  type: string
+  output_version?: string | null
+}
+
+type BaseOperationPayload = {
+  workspace: string | number
+  version_ids: Array<string | number>
+  [key: string]: unknown
+}
+
+const createOperation = async (path: string, payload: BaseOperationPayload) => {
+  const { data } = await apiClient.post<OperationJobResponse>(path, payload)
+  return data
+}
+
 export const operationsApi = {
-  async reorderPages(documentId: string, pageOrder: number[]) {
-    const { data } = await apiClient.post(`/documents/${documentId}/pages/reorder`, { pageOrder })
-    return data
-  },
-  async rotatePage(documentId: string, page: number, rotation: number) {
-    const { data } = await apiClient.post(`/documents/${documentId}/pages/${page}/rotate`, { rotation })
-    return data
-  },
-  async deletePage(documentId: string, page: number) {
-    const { data } = await apiClient.delete(`/documents/${documentId}/pages/${page}`)
-    return data
-  },
-  async merge(payload: { documentIds: string[] }) {
-    const { data } = await apiClient.post('/documents/merge', payload)
-    return data
-  },
-  async split(documentId: string, ranges: Array<{ from: number; to: number }>) {
-    const { data } = await apiClient.post(`/documents/${documentId}/split`, { ranges })
-    return data
-  }
+  rotate: (payload: BaseOperationPayload) => createOperation('/operations/rotate/', payload),
+  deletePages: (payload: BaseOperationPayload) => createOperation('/operations/delete-pages/', payload),
+  merge: (payload: BaseOperationPayload) => createOperation('/operations/merge/', payload),
+  split: (payload: BaseOperationPayload) => createOperation('/operations/split/', payload),
+  compress: (payload: BaseOperationPayload) => createOperation('/operations/compress/', payload)
 }
