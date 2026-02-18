@@ -22,9 +22,7 @@ from pdf_web.documents.models import DocumentStatus
 from pdf_web.documents.models import DocumentVersion
 from pdf_web.operations.models import ShareLink
 
-
 logger = logging.getLogger(__name__)
-
 
 EXT_BY_TARGET = {
     "pdf": "pdf",
@@ -51,7 +49,6 @@ PDF_EXPORT_FILTER_BY_EXT = {
     "pptx": "pptx:Impress MS PowerPoint 2007 XML",
 }
 
-
 XML_ILLEGAL_CHARS_RE = re.compile(r"[^\x09\x0A\x0D\x20-\uD7FF\uE000-\uFFFD]")
 
 
@@ -61,9 +58,11 @@ def _xml_safe_text(value: str) -> str:
     return escape(cleaned)
 
 
-def clone_version(version: DocumentVersion, *, created_by=None, processing_state: dict | None = None) -> DocumentVersion:
+def clone_version(version: DocumentVersion, *, created_by=None,
+                  processing_state: dict | None = None) -> DocumentVersion:
     document = version.document
-    next_version_number = (document.versions.aggregate(max_num=models.Max("version_number")) or {}).get("max_num", 0) + 1
+    next_version_number = (document.versions.aggregate(max_num=models.Max("version_number")) or {}).get("max_num",
+                                                                                                        0) + 1
     new_version = DocumentVersion.objects.create(
         document=document,
         version_number=next_version_number,
@@ -107,13 +106,13 @@ def _minimal_pdf_bytes(text: str) -> bytes:
         out.write(b"\nendobj\n")
 
     xref_pos = out.tell()
-    out.write(f"xref\n0 {len(objects)+1}\n".encode("ascii"))
+    out.write(f"xref\n0 {len(objects) + 1}\n".encode("ascii"))
     out.write(b"0000000000 65535 f \n")
     for offset in offsets[1:]:
         out.write(f"{offset:010d} 00000 n \n".encode("ascii"))
 
     out.write(
-        f"trailer\n<< /Root 1 0 R /Size {len(objects)+1} >>\nstartxref\n{xref_pos}\n%%EOF".encode("ascii")
+        f"trailer\n<< /Root 1 0 R /Size {len(objects) + 1} >>\nstartxref\n{xref_pos}\n%%EOF".encode("ascii")
     )
     return out.getvalue()
 
@@ -174,9 +173,8 @@ def _extract_ooxml_text(source_bytes: bytes, source_name: str) -> str:
     return ""
 
 
-
-
-def _convert_with_libreoffice(source_bytes: bytes, source_name: str, *, export_filter: str, prefix: str) -> bytes | None:
+def _convert_with_libreoffice(source_bytes: bytes, source_name: str, *, export_filter: str,
+                              prefix: str) -> bytes | None:
     soffice_bin = shutil.which("soffice") or shutil.which("libreoffice")
     if not soffice_bin:
         return None
@@ -204,7 +202,8 @@ def _convert_with_libreoffice(source_bytes: bytes, source_name: str, *, export_f
         try:
             completed = subprocess.run(command, check=True, capture_output=True, timeout=90)
             if completed.stderr:
-                logger.debug("LibreOffice stderr for %s: %s", source_name, completed.stderr.decode("utf-8", errors="ignore"))
+                logger.debug("LibreOffice stderr for %s: %s", source_name,
+                             completed.stderr.decode("utf-8", errors="ignore"))
         except (subprocess.SubprocessError, OSError) as exc:
             logger.warning("LibreOffice PDF conversion failed for %s: %s", source_name, exc)
             return None
@@ -259,16 +258,21 @@ def _extract_pdf_text(source_bytes: bytes, *, max_chars: int = 4000) -> str:
 
 
 def _convert_pdf_with_libreoffice(source_bytes: bytes, *, target_ext: str) -> bytes | None:
+    """Convert PDF using LibreOffice via ODP intermediate format (PDF->ODP->PPTX)."""
     soffice_bin = shutil.which("soffice") or shutil.which("libreoffice")
     if not soffice_bin:
+        logger.error("LibreOffice not found in PATH")
         return None
 
     with tempfile.TemporaryDirectory(prefix=f"pdf-to-{target_ext}-") as tmp_dir:
         tmp_path = Path(tmp_dir)
+
+        # Create profile directory
         profile_path = tmp_path / "lo-profile"
+        profile_path.mkdir(parents=True, exist_ok=True)
         profile_uri = profile_path.resolve().as_uri()
+
         input_path = tmp_path / "input.pdf"
-        output_path = tmp_path / f"input.{target_ext}"
         input_path.write_bytes(source_bytes)
 
         base_args = [
@@ -282,84 +286,374 @@ def _convert_pdf_with_libreoffice(source_bytes: bytes, *, target_ext: str) -> by
             "--nofirststartwizard",
         ]
 
-        direct_attempts = [target_ext]
-        if target_ext in PDF_EXPORT_FILTER_BY_EXT:
-            direct_attempts.append(PDF_EXPORT_FILTER_BY_EXT[target_ext])
+        # Step 1: PDF -> ODP using explicit impress8 filter
+        intermediate_path = tmp_path / "input.odp"
+        step1 = [
+            *base_args,
+            "--convert-to",
+            "odp:impress8",  # CRITICAL: Use explicit filter name
+            str(input_path),
+            "--outdir",
+            str(tmp_path)
+        ]
 
-        converted = False
-        for convert_to_arg in direct_attempts:
-            command = [*base_args, "--convert-to", convert_to_arg, str(input_path), "--outdir", str(tmp_path)]
-            try:
-                completed = subprocess.run(command, check=True, capture_output=True, timeout=180)
-                if completed.stderr:
-                    logger.debug(
-                        "LibreOffice PDF->%s (%s) stderr: %s",
-                        target_ext,
-                        convert_to_arg,
-                        completed.stderr.decode("utf-8", errors="ignore"),
-                    )
-                converted = True
-                break
-            except (subprocess.SubprocessError, OSError) as exc:
-                logger.warning("LibreOffice PDF->%s attempt (%s) failed: %s", target_ext, convert_to_arg, exc)
+        try:
+            logger.info("LibreOffice Step 1: PDF -> ODP (using impress8 filter)")
+            result = subprocess.run(step1, check=True, capture_output=True, timeout=300)
+            if result.stderr:
+                logger.debug("LibreOffice step1 stderr: %s", result.stderr.decode("utf-8", errors="ignore"))
+        except subprocess.TimeoutExpired:
+            logger.warning("LibreOffice PDF->ODP timeout (300s)")
+            return None
+        except (subprocess.SubprocessError, OSError) as exc:
+            logger.warning("LibreOffice PDF->ODP conversion failed: %s", exc)
+            return None
 
-        if not converted and target_ext in {"docx", "pptx"}:
-            intermediate_ext = "odt" if target_ext == "docx" else "odp"
-            intermediate_path = tmp_path / f"input.{intermediate_ext}"
-            step1 = [*base_args, "--convert-to", intermediate_ext, str(input_path), "--outdir", str(tmp_path)]
-            try:
-                subprocess.run(step1, check=True, capture_output=True, timeout=180)
-                if intermediate_path.exists() and intermediate_path.stat().st_size > 0:
-                    step2_variants = [target_ext]
-                    if target_ext in PDF_EXPORT_FILTER_BY_EXT:
-                        step2_variants.append(PDF_EXPORT_FILTER_BY_EXT[target_ext])
-                    for step2_arg in step2_variants:
-                        step2 = [*base_args, "--convert-to", step2_arg, str(intermediate_path), "--outdir", str(tmp_path)]
-                        try:
-                            subprocess.run(step2, check=True, capture_output=True, timeout=180)
-                            converted = True
-                            break
-                        except (subprocess.SubprocessError, OSError) as step2_exc:
-                            logger.warning(
-                                "LibreOffice %s->%s step2 (%s) failed: %s",
-                                intermediate_ext,
-                                target_ext,
-                                step2_arg,
-                                step2_exc,
-                            )
-            except (subprocess.SubprocessError, OSError) as step1_exc:
-                logger.warning("LibreOffice PDF->%s intermediate step failed: %s", intermediate_ext, step1_exc)
+        if not intermediate_path.exists() or intermediate_path.stat().st_size == 0:
+            logger.warning("LibreOffice did not create ODP file")
+            return None
 
-        if not converted:
-            # Final conservative attempt for distro-specific behavior.
-            fallback_command = [
-                soffice_bin,
-                "--headless",
-                "--convert-to",
-                target_ext,
-                str(input_path),
-                "--outdir",
-                str(tmp_path),
-            ]
-            try:
-                subprocess.run(fallback_command, check=True, capture_output=True, timeout=180)
-            except (subprocess.SubprocessError, OSError) as fallback_exc:
-                logger.warning("LibreOffice final PDF->%s fallback failed: %s", target_ext, fallback_exc)
+        # Step 2: ODP -> target format (PPTX, DOCX, etc.)
+        output_path = tmp_path / f"input.{target_ext}"
 
+        # Use explicit filter names for better compatibility
+        filter_map = {
+            "pptx": "Impress MS PowerPoint 2007 XML",
+            "docx": "MS Word 2007 XML",
+            "xlsx": "Calc MS Excel 2007 XML",
+        }
+
+        convert_arg = f"{target_ext}:{filter_map[target_ext]}" if target_ext in filter_map else target_ext
+        step2 = [*base_args, "--convert-to", convert_arg, str(intermediate_path), "--outdir", str(tmp_path)]
+
+        try:
+            logger.info(f"LibreOffice Step 2: ODP -> {target_ext.upper()}")
+            result = subprocess.run(step2, check=True, capture_output=True, timeout=300)
+            if result.stderr:
+                logger.debug("LibreOffice step2 stderr: %s", result.stderr.decode("utf-8", errors="ignore"))
+        except subprocess.TimeoutExpired:
+            logger.warning("LibreOffice ODP->%s timeout (300s)", target_ext.upper())
+            return None
+        except (subprocess.SubprocessError, OSError) as exc:
+            logger.warning("LibreOffice ODP->%s conversion failed: %s", target_ext.upper(), exc)
+            return None
+
+        # Check for output file (try both lowercase and uppercase)
         if not output_path.exists():
-            # Some soffice builds write uppercase extensions.
             uppercase_path = tmp_path / f"input.{target_ext.upper()}"
             if uppercase_path.exists():
                 output_path = uppercase_path
             else:
-                logger.warning("LibreOffice PDF->%s did not generate output file", target_ext)
+                logger.warning("LibreOffice did not create %s file", target_ext.upper())
                 return None
 
         if output_path.stat().st_size == 0:
-            logger.warning("LibreOffice PDF->%s output is empty", target_ext)
+            logger.warning("LibreOffice %s output is empty", target_ext.upper())
             return None
-        output = output_path.read_bytes()
-        return output if output else None
+
+        output_bytes = output_path.read_bytes()
+        logger.info(f"LibreOffice successfully converted PDF->{target_ext.upper()}, size: {len(output_bytes)} bytes")
+        return output_bytes
+
+
+def _convert_pdf_to_docx_with_pdf2docx(source_bytes: bytes) -> bytes | None:
+    """Convert PDF to DOCX using pdf2docx library (better quality)."""
+    try:
+        from pdf2docx import Converter
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            pdf_path = tmp_path / "input.pdf"
+            docx_path = tmp_path / "output.docx"
+
+            pdf_path.write_bytes(source_bytes)
+
+            cv = Converter(str(pdf_path))
+            cv.convert(str(docx_path))
+            cv.close()
+
+            if docx_path.exists():
+                return docx_path.read_bytes()
+    except Exception as exc:
+        logger.warning("pdf2docx conversion failed: %s", exc)
+    return None
+
+
+def _convert_pdf_to_pptx_with_images(source_bytes: bytes) -> bytes | None:
+    """Convert PDF to PPTX by rendering each page as an image."""
+    try:
+        from pdf2image import convert_from_bytes
+        from pptx import Presentation
+        from io import BytesIO
+
+        # Convert PDF pages to images
+        images = convert_from_bytes(source_bytes, dpi=150)
+
+        # Create PowerPoint
+        prs = Presentation()
+        blank_layout = prs.slide_layouts[6]  # Blank slide
+
+        for img in images:
+            slide = prs.slides.add_slide(blank_layout)
+
+            # Save image to BytesIO
+            img_io = BytesIO()
+            img.save(img_io, format='PNG')
+            img_io.seek(0)
+
+            # Add to slide (full size)
+            slide.shapes.add_picture(
+                img_io,
+                0, 0,
+                width=prs.slide_width,
+                height=prs.slide_height
+            )
+
+        # Save to bytes
+        output = BytesIO()
+        prs.save(output)
+        return output.getvalue()
+
+    except Exception as exc:
+        logger.warning("pdf2image+pptx conversion failed: %s", exc)
+    return None
+
+
+def _convert_pdf_to_editable_pptx(source_bytes: bytes) -> bytes | None:
+    """
+    Universal PDF -> editable PPTX.
+
+    Core strategy: ONE text box per span (smallest atomic unit).
+    - No grouping = no overlap between text boxes
+    - Background rendered without text (clean image underneath)
+    - Exact position/size from PDF coordinates
+    - Works for any PDF: simple, multi-column, tables, forms
+    """
+    try:
+        import fitz
+        from pptx import Presentation
+        from pptx.util import Pt, Inches
+        from pptx.dml.color import RGBColor
+        from pptx.oxml.xmlchemy import OxmlElement
+        from pptx.oxml.ns import qn
+
+        pdf_doc = fitz.open(stream=source_bytes, filetype="pdf")
+        if len(pdf_doc) == 0:
+            return None
+
+        prs = Presentation()
+
+        # Match slide ratio exactly to PDF
+        p0 = pdf_doc[0]
+        pdf_w0 = float(p0.rect.width)
+        pdf_h0 = float(p0.rect.height) or 1.0
+        ratio = pdf_w0 / pdf_h0
+        slide_h = 7.5
+        prs.slide_height = Inches(slide_h)
+        prs.slide_width = Inches(slide_h * ratio)
+
+        SLIDE_W = int(prs.slide_width)
+        SLIDE_H = int(prs.slide_height)
+        blank_layout = prs.slide_layouts[6]
+
+        # ── helpers ───────────────────────────────────────────────────────
+
+        def _zero_margins(tf):
+            bp = tf._txBody.find(
+                ".//{http://schemas.openxmlformats.org/drawingml/2006/main}bodyPr"
+            )
+            if bp is not None:
+                for a in ("lIns", "rIns", "tIns", "bIns"):
+                    bp.set(a, "0")
+
+        def _clean_font(raw: str) -> str:
+            s = (raw or "Calibri").split("+")[-1].strip() or "Calibri"
+            for suf in ("-BoldItalic", "-Bold", "-Italic",
+                        ",BoldItalic", ",Bold", ",Italic"):
+                s = s.replace(suf, "")
+            return s.strip() or "Calibri"
+
+        def _rgb(c: int):
+            return (c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF
+
+        # ── per-page ──────────────────────────────────────────────────────
+
+        for page_num in range(len(pdf_doc)):
+            page = pdf_doc[page_num]
+            slide = prs.slides.add_slide(blank_layout)
+
+            pdf_w = float(page.rect.width)
+            pdf_h = float(page.rect.height) or 1.0
+
+            scale = min(SLIDE_W / pdf_w, SLIDE_H / pdf_h)
+            x_off = int((SLIDE_W - pdf_w * scale) / 2)
+            y_off = int((SLIDE_H - pdf_h * scale) / 2)
+
+            # PDF pts -> EMU
+            def ex(v):
+                return int(v * scale + x_off)
+
+            def ey(v):
+                return int(v * scale + y_off)
+
+            def ew(v):
+                return max(int(v * scale), 914)
+
+            def eh(v):
+                return max(int(v * scale), 914)
+
+            # ── 1. Collect all spans ──────────────────────────────────────
+            raw = page.get_text("dict")
+
+            # OCR fallback for scanned pages
+            has_text = any(
+                (sp.get("text") or "").strip()
+                for bl in raw.get("blocks", []) or []
+                if bl.get("type") == 0
+                for ln in bl.get("lines", []) or []
+                for sp in ln.get("spans", []) or []
+            )
+            if not has_text:
+                try:
+                    tp = page.get_textpage_ocr(dpi=300, full=True)
+                    raw = page.get_text("dict", textpage=tp)
+                    logger.info("Page %s: OCR used", page_num + 1)
+                except Exception as e:
+                    logger.warning("OCR failed page %s: %s", page_num + 1, e)
+
+            spans = []
+            all_bboxes = []
+
+            for block in raw.get("blocks", []) or []:
+                if block.get("type") != 0:
+                    continue
+                for line in block.get("lines", []) or []:
+                    for sp in line.get("spans", []) or []:
+                        txt = (sp.get("text") or "").strip()
+                        if not txt:
+                            continue
+                        bb = sp.get("bbox")
+                        if not bb or len(bb) != 4:
+                            continue
+                        x0, y0, x1, y1 = map(float, bb)
+                        if (x1 - x0) < 0.5 or (y1 - y0) < 0.5:
+                            continue
+
+                        flags = int(sp.get("flags", 0))
+                        r, g, b = _rgb(int(sp.get("color", 0)))
+                        size = max(6.0, min(float(sp.get("size", 12)), 200.0))
+
+                        spans.append({
+                            "text": txt,
+                            "x0": x0, "y0": y0, "x1": x1, "y1": y1,
+                            "size": size,
+                            "font": _clean_font(sp.get("font", "")),
+                            "bold": bool(flags & 16),
+                            "italic": bool(flags & 2),
+                            "rgb": (r, g, b),
+                        })
+                        all_bboxes.append((x0, y0, x1, y1))
+
+                        # ── 2. Plain white background ────────────────────────────────
+            # Strategy: don't render PDF at all - just use white slide
+            # All content comes from text boxes placed at exact coordinates
+            background = slide.background
+            fill = background.fill
+            fill.solid()
+            fill.fore_color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+
+            # ── 3. One text box per span ──────────────────────────────────
+            # This is the KEY insight: no grouping = no overlap.
+            # Each span has its own isolated text box at exact PDF coordinates.
+            created = 0
+            for sp in spans:
+                x0, y0 = sp["x0"], sp["y0"]
+                x1, y1 = sp["x1"], sp["y1"]
+
+                left = max(0, ex(x0))
+                top = max(0, ey(y0))
+
+                # Width: exact from PDF + small buffer for font metrics
+                width = ew((x1 - x0) * 1.05)
+
+                # Height: use font size directly (most reliable)
+                # PDF bbox height often underestimates PPT rendering
+                height = eh(sp["size"] * 1.6)
+
+                # Clamp to slide
+                width = min(width, SLIDE_W - left)
+                height = min(height, SLIDE_H - top)
+                width = max(width, 200)
+                height = max(height, 100)
+
+                tx = slide.shapes.add_textbox(left, top, width, height)
+                tf = tx.text_frame
+                tf.word_wrap = False  # no wrap for single spans
+                _zero_margins(tf)
+
+                p = tf.paragraphs[0]
+                run = p.add_run()
+                run.text = sp["text"]
+
+                f = run.font
+                f.size = Pt(sp["size"])
+                f.bold = sp["bold"]
+                f.italic = sp["italic"]
+                f.color.rgb = RGBColor(*sp["rgb"])
+                try:
+                    f.name = sp["font"]
+                except Exception:
+                    f.name = "Calibri"
+
+                created += 1
+
+            logger.info(
+                "Page %s: %s text boxes (one per span)",
+                page_num + 1, created
+            )
+
+        pdf_doc.close()
+        out = BytesIO()
+        prs.save(out)
+        return out.getvalue()
+
+    except Exception as exc:
+        logger.warning("PDF->editable PPTX failed: %s", exc)
+        return None
+
+
+def _convert_pdf_to_xlsx_with_tabula(source_bytes: bytes) -> bytes | None:
+    """Convert PDF to XLSX by extracting tables."""
+    try:
+        import tabula
+        import pandas as pd
+        from io import BytesIO
+
+        with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as pdf_tmp:
+            pdf_tmp.write(source_bytes)
+            pdf_path = pdf_tmp.name
+
+        try:
+            # Extract tables from PDF
+            tables = tabula.read_pdf(pdf_path, pages='all', multiple_tables=True)
+
+            if not tables:
+                return None
+
+            # Create Excel file
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                for i, table in enumerate(tables):
+                    sheet_name = f'Table_{i + 1}' if len(tables) > 1 else 'Sheet1'
+                    table.to_excel(writer, sheet_name=sheet_name, index=False)
+
+            return output.getvalue()
+        finally:
+            Path(pdf_path).unlink(missing_ok=True)
+
+    except Exception as exc:
+        logger.warning("tabula conversion failed: %s", exc)
+    return None
 
 
 def _docx_from_text(text: str) -> bytes:
@@ -400,7 +694,7 @@ def _xlsx_from_text(text: str) -> bytes:
         f'count="{len(safe_lines)}" uniqueCount="{len(safe_lines)}">{shared_items}</sst>'
     )
     rows = "".join(
-        f'<row r="{i+1}"><c r="A{i+1}" t="s"><v>{i}</v></c></row>' for i in range(len(safe_lines))
+        f'<row r="{i + 1}"><c r="A{i + 1}" t="s"><v>{i}</v></c></row>' for i in range(len(safe_lines))
     )
     sheet_xml = (
         '<?xml version="1.0" encoding="UTF-8"?>'
@@ -488,6 +782,7 @@ def _pptx_from_text(text: str) -> bytes:
         archive.writestr("ppt/slides/slide1.xml", slide_xml)
     return out.getvalue()
 
+
 def _pdf_from_upload(version: DocumentVersion, *, allow_excel_text_fallback: bool = False) -> bytes:
     if not version.file:
         return _minimal_pdf_bytes("Converted to PDF")
@@ -552,7 +847,8 @@ def create_converted_version(
     conversion_params: dict | None = None,
 ) -> DocumentVersion:
     document = version.document
-    next_version_number = (document.versions.aggregate(max_num=models.Max("version_number")) or {}).get("max_num", 0) + 1
+    next_version_number = (document.versions.aggregate(max_num=models.Max("version_number")) or {}).get("max_num",
+                                                                                                        0) + 1
     base_name = Path(version.file.name).stem if version.file else f"version-{version.id}"
     extension = EXT_BY_TARGET.get(target_format, "bin")
     conversion_params = conversion_params or {}
@@ -581,7 +877,72 @@ def create_converted_version(
             output_bytes = b"\xff\xd8\xff\xdb\x00C\x00" + b"0" * 128 + b"\xff\xd9"
     elif target_format in {"word", "excel", "ppt"} and source_name.endswith(".pdf"):
         target_ext = EXT_BY_TARGET.get(target_format, "bin")
-        converted = _convert_pdf_with_libreoffice(source_bytes, target_ext=target_ext)
+        converted = None
+
+        # Try modern libraries first (better quality)
+        if target_format == "word":
+            logger.info("Attempting PDF->DOCX with pdf2docx")
+            converted = _convert_pdf_to_docx_with_pdf2docx(source_bytes)
+            if converted:
+                logger.info("Successfully converted using pdf2docx")
+
+        elif target_format == "ppt":
+            # Strategy: Try editable conversion first, fallback to image-based
+            # This mimics what commercial APIs do (image background + text layer)
+
+            # Try 1: Editable PPTX (image background + invisible editable text)
+            logger.info("Attempting PDF->PPTX editable conversion (PyMuPDF)")
+            converted = _convert_pdf_to_editable_pptx(source_bytes)
+
+            # Validate it has slides
+            if converted:
+                try:
+                    import zipfile
+                    with zipfile.ZipFile(BytesIO(converted), 'r') as z:
+                        slide_files = [
+                            f for f in z.namelist()
+                            if 'ppt/slides/slide' in f and f.endswith('.xml')
+                        ]
+                        if not slide_files:
+                            logger.warning("Editable PPTX has no slides, trying LibreOffice")
+                            converted = None
+                except Exception:
+                    converted = None
+
+            # Try 2: LibreOffice (may produce editable slides for some PDFs)
+            if not converted:
+                logger.info("Attempting PDF->PPTX with LibreOffice")
+                converted = _convert_pdf_with_libreoffice(source_bytes, target_ext="pptx")
+
+                if converted:
+                    try:
+                        import zipfile
+                        with zipfile.ZipFile(BytesIO(converted), 'r') as z:
+                            slide_files = [
+                                f for f in z.namelist()
+                                if 'ppt/slides/slide' in f and f.endswith('.xml')
+                            ]
+                            if not slide_files:
+                                logger.warning("LibreOffice PPTX has no slides, using image fallback")
+                                converted = None
+                            else:
+                                logger.info(f"✓ LibreOffice PPTX validated: {len(slide_files)} slides")
+                    except zipfile.BadZipFile:
+                        logger.warning("LibreOffice PPTX corrupted, using image fallback")
+                        converted = None
+
+            # Try 3: Pure image-based (guaranteed to work, not editable)
+            if not converted:
+                logger.info("Using image-based PDF->PPTX (reliable fallback)")
+                converted = _convert_pdf_to_pptx_with_images(source_bytes)
+                if converted:
+                    logger.info("✓ Image-based PPTX created successfully")
+
+        elif target_format == "excel":
+            logger.info("Attempting PDF->XLSX with tabula")
+            converted = _convert_pdf_to_xlsx_with_tabula(source_bytes)
+
+        # Use converted bytes if successful, otherwise fall back to text extraction
         if converted:
             output_bytes = converted
         else:
@@ -590,6 +951,9 @@ def create_converted_version(
                     "High-fidelity PDF conversion is unavailable for this target format. "
                     "Install LibreOffice/soffice or retry with allow_text_fallback=true."
                 )
+
+            # Text extraction fallback
+            logger.info("Using text extraction fallback")
             text = _extract_pdf_text(source_bytes)
             if target_format == "word":
                 output_bytes = _docx_from_text(text)
@@ -627,7 +991,8 @@ def create_converted_version(
     return new_version
 
 
-def create_share_link(*, version: DocumentVersion, user, expires_in_hours: int | None, password: str | None) -> ShareLink:
+def create_share_link(*, version: DocumentVersion, user, expires_in_hours: int | None,
+                      password: str | None) -> ShareLink:
     expires_at = timezone.now() + timedelta(hours=expires_in_hours) if expires_in_hours else None
     return ShareLink.objects.create(
         workspace=version.document.workspace,

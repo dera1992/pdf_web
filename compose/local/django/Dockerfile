@@ -45,6 +45,21 @@ RUN groupadd --gid 1000 dev-user \
   && chmod 0440 /etc/sudoers.d/dev-user
 
 
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        tesseract-ocr \
+        tesseract-ocr-eng \
+        libtesseract-dev \
+        libleptonica-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+ENV TESSDATA_PREFIX=/usr/share/tesseract-ocr/5/tessdata
+
+RUN tesseract --version
+
+
+# In compose/local/django/Dockerfile
+
 # Install required system dependencies
 RUN apt-get update && apt-get install --no-install-recommends -y \
   # psycopg dependencies
@@ -52,11 +67,12 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   wait-for-it \
   # Translations dependencies
   gettext \
-  # High-fidelity Office conversion (Excel -> PDF via soffice)
-  libreoffice-calc \
-  libreoffice-writer \
-  libreoffice-impress \
-  libreoffice-draw \
+  # LibreOffice for PDF → PowerPoint conversion
+  libreoffice \
+  libreoffice-java-common \
+  default-jre-headless \
+  # For pdf2image (PowerPoint fallback)
+  poppler-utils \
   # cleaning up unused files
   && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
   && rm -rf /var/lib/apt/lists/*

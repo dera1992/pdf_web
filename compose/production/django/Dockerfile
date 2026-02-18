@@ -40,21 +40,25 @@ RUN addgroup --system django \
 
 
 # Install required system dependencies
+# In compose/local/django/Dockerfile
+
+# Install required system dependencies
 RUN apt-get update && apt-get install --no-install-recommends -y \
   # psycopg dependencies
-  libpq-dev \
+  libpq-dev  \
+  wait-for-it \
   # Translations dependencies
   gettext \
-  # High-fidelity Office conversion (Excel -> PDF via soffice)
-  libreoffice-calc \
-  libreoffice-writer \
-  libreoffice-impress \
-  libreoffice-draw \
-  # entrypoint
-  wait-for-it \
+  # LibreOffice for PDF → PowerPoint conversion
+  libreoffice \
+  libreoffice-java-common \
+  default-jre-headless \
+  # For pdf2image (PowerPoint fallback)
+  poppler-utils \
   # cleaning up unused files
   && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
   && rm -rf /var/lib/apt/lists/*
+
 
 # All absolute dir copies ignore workdir instruction. All relative dir copies are wrt to the workdir instruction
 # copy python dependency wheels from python-build-stage
