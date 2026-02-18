@@ -6,7 +6,6 @@ import { CollaborationOverlay } from '../components/CollaborationOverlay'
 import { useCollaborationSocket } from '../websocket/useCollaborationSocket'
 import { useDocumentStore } from '../store/documentStore'
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts'
-import { useCollaborationStore } from '../store/collaborationStore'
 import { useAiStore } from '../store/aiStore'
 import { useViewerStore } from '../store/viewerStore'
 import { useToastStore } from '../store/toastStore'
@@ -15,8 +14,7 @@ import { documentsApi } from '../api/documents'
 export const DocumentPage = () => {
   const { documentId } = useParams()
   const setActiveDocument = useDocumentStore((state) => state.setActiveDocument)
-  const collaborators = useCollaborationStore((state) => state.collaborators)
-  const setCollaborators = useCollaborationStore((state) => state.setCollaborators)
+  const setActiveVersionId = useDocumentStore((state) => state.setActiveVersionId)
   const darkMode = useViewerStore((state) => state.darkMode)
   const setPermissions = useAiStore((state) => state.setPermissions)
   const pushToast = useToastStore((state) => state.push)
@@ -41,6 +39,7 @@ export const DocumentPage = () => {
         const currentVersionId = data.current_version?.id?.toString() ?? null
         if (currentVersionId) {
           setVersionId(currentVersionId)
+          setActiveVersionId(currentVersionId)
         } else {
           const versions = await documentsApi.listVersions(documentId)
           const latest = [...versions].sort((a, b) => {
@@ -54,8 +53,10 @@ export const DocumentPage = () => {
 
           if (latest?.id) {
             setVersionId(latest.id.toString())
+            setActiveVersionId(latest.id.toString())
           } else {
             setVersionId(null)
+            setActiveVersionId(null)
             setPdfError('No document version is available yet.')
           }
         }
@@ -77,6 +78,7 @@ export const DocumentPage = () => {
           pageCount: 0,
           status: 'error'
         })
+        setActiveVersionId(null)
         setPermissions({ canUseAi: false, usesExternalAi: true })
       }
     }
@@ -84,7 +86,7 @@ export const DocumentPage = () => {
     return () => {
       cancelled = true
     }
-  }, [documentId, setActiveDocument, setPermissions])
+  }, [documentId, setActiveDocument, setActiveVersionId, setPermissions])
 
   useEffect(() => {
     if (!versionId) {
@@ -147,14 +149,22 @@ export const DocumentPage = () => {
     }
   }, [pushToast, versionId])
 
-  useEffect(() => {
-    if (collaborators.length === 0) {
-      setCollaborators([
-        { id: 'u1', name: 'Aria', color: '#f43f5e' },
-        { id: 'u2', name: 'Noah', color: '#22c55e' }
-      ])
-    }
-  }, [collaborators.length, setCollaborators])
+
+  if (pdfLoading && !pdfUrl) {
+    return (
+      <div className="flex h-full items-center justify-center text-sm text-surface-500">
+        Loading document preview…
+      </div>
+    )
+  }
+
+  if (pdfError && !pdfUrl) {
+    return (
+      <div className="flex h-full items-center justify-center px-8 text-center text-sm text-rose-600 dark:text-rose-300">
+        {pdfError}
+      </div>
+    )
+  }
 
   if (pdfLoading && !pdfUrl) {
     return (

@@ -41,6 +41,7 @@ export type DocumentVersion = {
 
 export type Document = {
   id: string
+  workspace?: string | number
   title: string
   updatedAt?: string
   pageCount?: number

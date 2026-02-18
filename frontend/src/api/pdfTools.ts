@@ -23,6 +23,22 @@ export const pdfToolsApi = {
     apiClient.post(`/versions/${versionId}/fill-form/`, payload),
   share: (versionId: string, payload: { expires_in_hours?: number; password?: string }) =>
     apiClient.post(`/versions/${versionId}/share/`, payload),
+  startOcr: (versionId: string, payload: { language: string }) =>
+    apiClient.post<{ status: string }>(`/versions/${versionId}/ocr/`, payload),
+  suggestRedactions: (versionId: string) =>
+    apiClient.post<{ status: string }>(`/versions/${versionId}/redaction/suggest/`, {}),
+  applyRedactions: (versionId: string, payload: { accepted_ids: number[] }) =>
+    apiClient.post<{ task_id: string }>(`/versions/${versionId}/redaction/apply/`, payload),
+  getLayout: (versionId: string, page?: number) =>
+    apiClient.get<{ layout: Record<string, unknown> | Array<Record<string, unknown>> }>(`/versions/${versionId}/layout/`, {
+      params: typeof page === 'number' ? { page } : undefined
+    }),
+  convertVersionToWord: (versionId: string) =>
+    apiClient.post<AsyncJobResponse>(`/versions/${versionId}/convert/word/`, {}),
+  convertVersionToExcel: (versionId: string) =>
+    apiClient.post<AsyncJobResponse>(`/versions/${versionId}/convert/excel/`, {}),
+  convertVersionToJpg: (versionId: string) =>
+    apiClient.post<AsyncJobResponse>(`/versions/${versionId}/convert/jpg/`, {}),
   convertPdfToWord: (payload: FormData) => apiClient.post<AsyncJobResponse>('/convert/pdf-to-word/', payload),
   convertPdfToExcel: (payload: FormData) => apiClient.post<AsyncJobResponse>('/convert/pdf-to-excel/', payload),
   convertPdfToPpt: (payload: FormData) => apiClient.post<AsyncJobResponse>('/convert/pdf-to-ppt/', payload),
