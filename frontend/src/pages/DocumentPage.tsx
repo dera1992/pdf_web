@@ -166,22 +166,6 @@ export const DocumentPage = () => {
     )
   }
 
-  if (pdfLoading && !pdfUrl) {
-    return (
-      <div className="flex h-full items-center justify-center text-sm text-surface-500">
-        Loading document preview…
-      </div>
-    )
-  }
-
-  if (pdfError && !pdfUrl) {
-    return (
-      <div className="flex h-full items-center justify-center px-8 text-center text-sm text-rose-600 dark:text-rose-300">
-        {pdfError}
-      </div>
-    )
-  }
-
   return (
     <div className="relative flex h-full w-full justify-center">
       <div className={`relative h-full w-full ${darkMode ? 'mix-blend-screen brightness-90' : ''}`}>
