@@ -25,11 +25,17 @@ export const RightPanel = () => {
       <div className="mt-4 flex-1 overflow-hidden">
         <AnimatePresence mode="wait">
           {rightPanelTab === 'tools' ? (
-            <motion.div key="tools" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+            <motion.div
+              key="tools"
+              className="h-full overflow-y-auto pr-1"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+            >
               <ToolsPanel />
             </motion.div>
           ) : (
-            <motion.div key="assistant" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+            <motion.div key="assistant" className="h-full" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
               <AssistantPanel />
             </motion.div>
           )}

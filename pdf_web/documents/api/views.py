@@ -165,9 +165,13 @@ class DocumentVersionViewSet(ReadOnlyModelViewSet):
         return super().get_throttles()
 
     def get_queryset(self):
-        return DocumentVersion.objects.filter(
+        queryset = DocumentVersion.objects.filter(
             Q(document__workspace__owner=self.request.user) | Q(document__workspace__memberships__user=self.request.user)
         ).distinct()
+        document_id = self.request.query_params.get("document")
+        if document_id:
+            queryset = queryset.filter(document_id=document_id)
+        return queryset
 
     @action(detail=True, methods=["get"], url_path="render-page")
     def render_page(self, request, pk=None):
