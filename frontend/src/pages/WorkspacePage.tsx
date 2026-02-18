@@ -1,5 +1,6 @@
 import { type ChangeEvent, useRef } from 'react'
 import { useParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useDocuments } from '../hooks/useDocuments'
 import { documentsApi } from '../api/documents'
@@ -11,6 +12,7 @@ import { useToastStore } from '../store/toastStore'
 
 export const WorkspacePage = () => {
   const { id } = useParams()
+  const navigate = useNavigate()
   const { data, isLoading } = useDocuments(id)
   const queryClient = useQueryClient()
   const pushToast = useToastStore((state) => state.push)
@@ -84,13 +86,18 @@ export const WorkspacePage = () => {
         ) : (
           <div className="mt-4 space-y-3">
             {(data ?? []).map((doc) => (
-              <div key={doc.id} className="flex items-center justify-between rounded-lg border border-surface-200 px-4 py-3 dark:border-surface-800">
+              <button
+                key={doc.id}
+                type="button"
+                onClick={() => navigate(`/document/${doc.id}`)}
+                className="flex w-full items-center justify-between rounded-lg border border-surface-200 px-4 py-3 text-left transition hover:border-accent-300 hover:bg-accent-50/40 dark:border-surface-800 dark:hover:border-accent-500/60 dark:hover:bg-accent-900/10"
+              >
                 <div>
                   <div className="text-sm font-semibold">{doc.title}</div>
                   <div className="text-xs text-surface-500">{doc.pageCount} pages</div>
                 </div>
                 <Badge tone={doc.status === 'ready' ? 'accent' : 'neutral'}>{doc.status}</Badge>
-              </div>
+              </button>
             ))}
             {data?.length === 0 && <div className="text-sm text-surface-500">No documents yet.</div>}
           </div>
