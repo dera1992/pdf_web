@@ -419,6 +419,75 @@ def _convert_pdf_to_pptx_with_images(source_bytes: bytes) -> bytes | None:
     return None
 
 
+def _convert_pdf_to_editable_pptx_stirling(source_bytes: bytes) -> bytes | None:
+    """
+    Convert PDF to editable PPTX using Stirling-PDF service.
+
+    Stirling-PDF is a self-hosted open-source PDF tool that runs LibreOffice
+    with proper orchestration (unoconvert) for production-quality conversions.
+
+    Returns:
+        PPTX bytes if successful, None if Stirling-PDF is unavailable
+    """
+    try:
+        import requests
+        from django.conf import settings
+
+        # Stirling-PDF service URL (running in docker-compose)
+        stirling_url = getattr(settings, 'STIRLING_PDF_URL', 'http://stirling-pdf:8080')
+
+        logger.info("Attempting PDF→PPTX with Stirling-PDF at %s", stirling_url)
+
+        # Prepare file for upload
+        files = {
+            'fileInput': ('input.pdf', source_bytes, 'application/pdf')
+        }
+
+        # Call Stirling-PDF conversion API
+        # Endpoint: /api/v1/convert/pdf/powerpoint
+        response = requests.post(
+            f"{stirling_url}/api/v1/convert/pdf/powerpoint",
+            files=files,
+            timeout=180  # 3 minutes max
+        )
+
+        if response.status_code == 200:
+            result_bytes = response.content
+
+            # Validate it's actually a PPTX
+            import zipfile
+            from io import BytesIO
+            try:
+                with zipfile.ZipFile(BytesIO(result_bytes), 'r') as z:
+                    required = ['[Content_Types].xml', 'ppt/presentation.xml']
+                    if all(f in z.namelist() for f in required):
+                        logger.info("✓ Stirling-PDF conversion successful, size: %s bytes", len(result_bytes))
+                        return result_bytes
+                    else:
+                        logger.warning("Stirling-PDF returned invalid PPTX (missing required files)")
+                        return None
+            except zipfile.BadZipFile:
+                logger.warning("Stirling-PDF returned corrupted PPTX")
+                return None
+        else:
+            logger.warning(
+                "Stirling-PDF returned status %s: %s",
+                response.status_code,
+                response.text[:200] if response.text else "No error message"
+            )
+            return None
+
+    except requests.exceptions.ConnectionError:
+        logger.warning("Stirling-PDF service not reachable - is it running?")
+        return None
+    except requests.exceptions.Timeout:
+        logger.warning("Stirling-PDF conversion timeout after 180s")
+        return None
+    except Exception as exc:
+        logger.warning("Stirling-PDF conversion error: %s", exc)
+        return None
+
+
 def _convert_pdf_to_editable_pptx(source_bytes: bytes) -> bytes | None:
     """
     Universal PDF -> editable PPTX.
@@ -887,53 +956,19 @@ def create_converted_version(
                 logger.info("Successfully converted using pdf2docx")
 
         elif target_format == "ppt":
-            # Strategy: Try editable conversion first, fallback to image-based
-            # This mimics what commercial APIs do (image background + text layer)
+            # Conversion Strategy (fallback chain):
+            # 1. Stirling-PDF (production quality, editable) - self-hosted, free
+            # 2. Image-based (perfect visuals, not editable) - always works
 
-            # Try 1: Editable PPTX (image background + invisible editable text)
-            logger.info("Attempting PDF->PPTX editable conversion (PyMuPDF)")
-            converted = _convert_pdf_to_editable_pptx(source_bytes)
+            # Try 1: Stirling-PDF (best quality editable PPTX)
+            logger.info("Attempting PDF→PPTX with Stirling-PDF")
+            converted = _convert_pdf_to_editable_pptx_stirling(source_bytes)
 
-            # Validate it has slides
             if converted:
-                try:
-                    import zipfile
-                    with zipfile.ZipFile(BytesIO(converted), 'r') as z:
-                        slide_files = [
-                            f for f in z.namelist()
-                            if 'ppt/slides/slide' in f and f.endswith('.xml')
-                        ]
-                        if not slide_files:
-                            logger.warning("Editable PPTX has no slides, trying LibreOffice")
-                            converted = None
-                except Exception:
-                    converted = None
-
-            # Try 2: LibreOffice (may produce editable slides for some PDFs)
-            if not converted:
-                logger.info("Attempting PDF->PPTX with LibreOffice")
-                converted = _convert_pdf_with_libreoffice(source_bytes, target_ext="pptx")
-
-                if converted:
-                    try:
-                        import zipfile
-                        with zipfile.ZipFile(BytesIO(converted), 'r') as z:
-                            slide_files = [
-                                f for f in z.namelist()
-                                if 'ppt/slides/slide' in f and f.endswith('.xml')
-                            ]
-                            if not slide_files:
-                                logger.warning("LibreOffice PPTX has no slides, using image fallback")
-                                converted = None
-                            else:
-                                logger.info(f"✓ LibreOffice PPTX validated: {len(slide_files)} slides")
-                    except zipfile.BadZipFile:
-                        logger.warning("LibreOffice PPTX corrupted, using image fallback")
-                        converted = None
-
-            # Try 3: Pure image-based (guaranteed to work, not editable)
-            if not converted:
-                logger.info("Using image-based PDF->PPTX (reliable fallback)")
+                logger.info("✓ Stirling-PDF conversion successful")
+            else:
+                # Fallback: Image-based (always works)
+                logger.info("Stirling-PDF unavailable, using image-based fallback")
                 converted = _convert_pdf_to_pptx_with_images(source_bytes)
                 if converted:
                     logger.info("✓ Image-based PPTX created successfully")

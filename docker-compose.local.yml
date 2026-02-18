@@ -2,6 +2,9 @@ volumes:
   pdf_web_local_postgres_data: {}
   pdf_web_local_postgres_data_backups: {}
   pdf_web_local_redis_data: {}
+  stirling_data:
+  stirling_config:
+
 
 services:
   django: &django
@@ -70,6 +73,22 @@ services:
       - mailpit
     ports: []
     command: /start-celerybeat
+
+  stirling-pdf:
+    image: frooodle/s-pdf:0.29.0
+    container_name: pdf_web_stirling
+    ports:
+      - "8090:8080"
+    volumes:
+      - stirling_data:/usr/share/tessdata
+      - stirling_config:/configs
+    environment:
+      - DOCKER_ENABLE_SECURITY=false
+      - SYSTEM_DEFAULTLOCALE=en-US
+      - INSTALL_BOOK_AND_ADVANCED_HTML_OPS=true
+    restart: unless-stopped
+    networks:
+      - default
 #
 #  flower:
 #    <<: *django
