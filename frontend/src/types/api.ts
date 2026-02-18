@@ -48,6 +48,7 @@ export type Document = {
   current_version?: DocumentVersion | null
   updated_at?: string
   created_at?: string
+  workspace_role?: 'viewer' | 'editor' | 'admin' | 'owner' | null
 }
 
 export type Annotation = {
@@ -57,7 +58,7 @@ export type Annotation = {
   type: 'highlight' | 'underline' | 'strike' | 'draw' | 'note' | 'shape' | 'stamp' | 'signature' | 'form'
   rects?: { x: number; y: number; width: number; height: number }[]
   points?: { x: number; y: number }[]
-  style?: { color?: string; opacity?: number; thickness?: number; fontSize?: number }
+  style?: { color?: string; opacity?: number; thickness?: number; fontSize?: number; shapeKind?: 'rect' | 'arrow' }
   content?: string
   author?: { id: string; name: string }
   createdAt: string

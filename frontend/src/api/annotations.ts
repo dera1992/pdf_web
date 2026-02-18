@@ -4,13 +4,13 @@ import type { Annotation } from '../types/api'
 type AnnotationPayload = {
   rects?: { x: number; y: number; width: number; height: number }[]
   points?: { x: number; y: number }[]
-  style?: { color?: string; opacity?: number; thickness?: number; fontSize?: number }
+  style?: { color?: string; opacity?: number; thickness?: number; fontSize?: number; shapeKind?: 'rect' | 'arrow' }
   content?: string
   author?: { id: string; name: string }
   revision?: number
 }
 
-type ApiAnnotation = {
+export type ApiAnnotation = {
   id: number | string
   document: number | string
   version: number | string
@@ -21,6 +21,7 @@ type ApiAnnotation = {
   created_at?: string
   updated_at?: string
   is_deleted?: boolean
+  revision_number?: number
 }
 
 const mapApiTypeToFrontend = (type: string): Annotation['type'] => {
@@ -59,7 +60,7 @@ const mapFrontendTypeToApi = (type: Annotation['type']) => {
   }
 }
 
-const mapApiAnnotation = (annotation: ApiAnnotation): Annotation => ({
+export const mapApiAnnotationToFrontend = (annotation: ApiAnnotation): Annotation => ({
   id: annotation.id.toString(),
   documentId: annotation.document?.toString() ?? '',
   page: annotation.page_number,
@@ -71,7 +72,7 @@ const mapApiAnnotation = (annotation: ApiAnnotation): Annotation => ({
   author: annotation.payload?.author,
   createdAt: annotation.created_at ?? new Date().toISOString(),
   updatedAt: annotation.updated_at,
-  revision: annotation.payload?.revision
+  revision: annotation.revision_number ?? annotation.payload?.revision
 })
 
 const mapFrontendAnnotation = (annotation: Annotation) => ({
@@ -90,19 +91,20 @@ const mapFrontendAnnotation = (annotation: Annotation) => ({
 export const annotationsApi = {
   async list(versionId: string) {
     const { data } = await apiClient.get<ApiAnnotation[]>(`/versions/${versionId}/annotations/`)
-    return data.map(mapApiAnnotation)
+    return data.map(mapApiAnnotationToFrontend)
   },
   async create(versionId: string, payload: Annotation) {
     const { data } = await apiClient.post<ApiAnnotation>(
       `/versions/${versionId}/annotations/`,
       mapFrontendAnnotation(payload)
     )
-    return mapApiAnnotation(data)
+    return mapApiAnnotationToFrontend(data)
   },
   async update(annotationId: string, payload: Partial<Annotation>) {
     const requestPayload = {
       ...(payload.page !== undefined ? { page_number: payload.page } : {}),
       ...(payload.type ? { type: mapFrontendTypeToApi(payload.type) } : {}),
+      ...(payload.revision !== undefined ? { revision_number: payload.revision } : {}),
       ...(payload.rects ||
       payload.points ||
       payload.style ||
@@ -122,7 +124,7 @@ export const annotationsApi = {
         : {})
     }
     const { data } = await apiClient.patch<ApiAnnotation>(`/annotations/${annotationId}/`, requestPayload)
-    return mapApiAnnotation(data)
+    return mapApiAnnotationToFrontend(data)
   },
   async remove(annotationId: string) {
     const { data } = await apiClient.delete(`/annotations/${annotationId}/`)

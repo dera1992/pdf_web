@@ -9,6 +9,7 @@ from pdf_web.documents.models import DocumentPageAsset
 from pdf_web.documents.models import DocumentVersion
 from pdf_web.documents.models import Workspace
 from pdf_web.documents.models import WorkspaceMember
+from pdf_web.permissions import get_workspace_role
 
 
 class WorkspaceSerializer(serializers.ModelSerializer):
@@ -58,6 +59,7 @@ class DocumentVersionSerializer(serializers.ModelSerializer):
 
 class DocumentSerializer(serializers.ModelSerializer):
     current_version = DocumentVersionSerializer(read_only=True)
+    workspace_role = serializers.SerializerMethodField()
 
     class Meta:
         model = Document
@@ -70,8 +72,16 @@ class DocumentSerializer(serializers.ModelSerializer):
             "updated_at",
             "status",
             "current_version",
+            "workspace_role",
         ]
-        read_only_fields = ["id", "created_by", "created_at", "updated_at", "status", "current_version"]
+        read_only_fields = ["id", "created_by", "created_at", "updated_at", "status", "current_version", "workspace_role"]
+
+    def get_workspace_role(self, obj: Document) -> str | None:
+        request = self.context.get("request")
+        if not request or not getattr(request, "user", None) or not request.user.is_authenticated:
+            return None
+        role = get_workspace_role(request.user, obj.workspace)
+        return str(role) if role else None
 
 
 class DocumentCreateSerializer(serializers.ModelSerializer):

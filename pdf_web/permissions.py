@@ -11,9 +11,10 @@ from pdf_web.documents.models import WorkspaceRole
 
 ROLE_HIERARCHY = {
     WorkspaceRole.VIEWER: 1,
-    WorkspaceRole.EDITOR: 2,
-    WorkspaceRole.ADMIN: 3,
-    WorkspaceRole.OWNER: 4,
+    WorkspaceRole.COMMENTER: 2,
+    WorkspaceRole.EDITOR: 3,
+    WorkspaceRole.ADMIN: 4,
+    WorkspaceRole.OWNER: 5,
 }
 
 

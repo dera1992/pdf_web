@@ -33,8 +33,12 @@ export const DocumentPage = () => {
         if (cancelled) return
         setActiveDocument(data)
         setVersionId(data.current_version?.id?.toString() ?? null)
+        const allowedAiRoles = new Set(['viewer', 'editor', 'admin', 'owner'])
+        const hasAiRole = data.workspace_role ? allowedAiRoles.has(data.workspace_role) : false
+        const documentReadyForAi = data.status !== 'processing' && data.status !== 'error'
+
         setPermissions({
-          canUseAi: data.status !== 'processing' && data.status !== 'error',
+          canUseAi: hasAiRole && documentReadyForAi,
           usesExternalAi: true
         })
       } catch {
@@ -46,7 +50,7 @@ export const DocumentPage = () => {
           pageCount: 42,
           status: 'ready'
         })
-        setPermissions({ canUseAi: true, usesExternalAi: true })
+        setPermissions({ canUseAi: false, usesExternalAi: true })
       }
     }
     loadDocument()
