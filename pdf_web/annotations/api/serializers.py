@@ -29,6 +29,38 @@ class AnnotationSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "created_by", "created_at", "updated_at", "is_deleted"]
 
+    def validate_payload(self, payload: dict) -> dict:
+        rects = payload.get("rects")
+        points = payload.get("points")
+
+        def _is_number(value):
+            return isinstance(value, (int, float))
+
+        if rects is not None:
+            if not isinstance(rects, list):
+                raise serializers.ValidationError("payload.rects must be a list.")
+            for rect in rects:
+                if not isinstance(rect, dict):
+                    raise serializers.ValidationError("payload.rects entries must be objects.")
+                for field in ("x", "y", "width", "height"):
+                    if field not in rect or not _is_number(rect[field]):
+                        raise serializers.ValidationError(f"payload.rects[].{field} must be numeric.")
+
+        if points is not None:
+            if not isinstance(points, list):
+                raise serializers.ValidationError("payload.points must be a list.")
+            for point in points:
+                if not isinstance(point, dict):
+                    raise serializers.ValidationError("payload.points entries must be objects.")
+                for field in ("x", "y"):
+                    if field not in point or not _is_number(point[field]):
+                        raise serializers.ValidationError(f"payload.points[].{field} must be numeric.")
+
+        if rects is None and points is None:
+            raise serializers.ValidationError("payload must include either rects or points for coordinates.")
+
+        return payload
+
     def get_revision_number(self, obj: Annotation) -> int:
         return obj.revisions.count()
 

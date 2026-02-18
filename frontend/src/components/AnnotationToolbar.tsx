@@ -6,13 +6,14 @@ import {
   Strikethrough,
   StickyNote,
   Shapes,
+  ArrowRight,
   Stamp,
   PenTool,
   FormInput,
   Undo2,
   Redo2
 } from 'lucide-react'
-import { useAnnotationStore } from '../store/annotationStore'
+import { annotationsActions, selectActiveTool, useAnnotationsDispatch, useAnnotationsState } from '../store/annotationsRedux'
 import { cn } from '../utils/cn'
 
 const tools = [
@@ -22,15 +23,17 @@ const tools = [
   { key: 'strike', label: 'Strikethrough', icon: Strikethrough },
   { key: 'draw', label: 'Freehand', icon: Pencil },
   { key: 'note', label: 'Sticky note', icon: StickyNote },
-  { key: 'shape', label: 'Shapes', icon: Shapes },
+  { key: 'shape', label: 'Rectangle', icon: Shapes },
+  { key: 'arrow', label: 'Arrow', icon: ArrowRight },
   { key: 'stamp', label: 'Stamp', icon: Stamp },
   { key: 'signature', label: 'Signature', icon: PenTool },
   { key: 'form', label: 'Form field', icon: FormInput }
 ]
 
 export const AnnotationToolbar = () => {
-  const activeTool = useAnnotationStore((state) => state.activeTool)
-  const setActiveTool = useAnnotationStore((state) => state.setActiveTool)
+  const state = useAnnotationsState()
+  const dispatch = useAnnotationsDispatch()
+  const activeTool = selectActiveTool(state)
 
   return (
     <div className="flex flex-wrap items-center gap-2 border-b border-surface-200 bg-white px-4 py-2 dark:border-surface-800 dark:bg-surface-900">
@@ -57,7 +60,7 @@ export const AnnotationToolbar = () => {
               'flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium text-surface-600 transition hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-800',
               isActive && 'bg-accent-600 text-white hover:bg-accent-700'
             )}
-            onClick={() => setActiveTool(tool.key)}
+            onClick={() => dispatch(annotationsActions.setActiveTool(tool.key))}
           >
             <Icon className="h-3.5 w-3.5" />
             {tool.label}
