@@ -1,6 +1,6 @@
 import apiClient from './client'
 import { getStoredAccessToken } from '../store/authStore'
-import type { Document } from '../types/api'
+import type { Document, DocumentVersion } from '../types/api'
 
 export const documentsApi = {
   async list(workspaceId: string) {
@@ -11,6 +11,12 @@ export const documentsApi = {
   },
   async get(documentId: string) {
     const { data } = await apiClient.get<Document>(`/documents/${documentId}/`)
+    return data
+  },
+  async listVersions(documentId: string) {
+    const { data } = await apiClient.get<DocumentVersion[]>('/versions/', {
+      params: { document: documentId }
+    })
     return data
   },
   async getVersionDownload(versionId: string) {

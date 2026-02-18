@@ -29,7 +29,7 @@ export const ToolsPanel = () => {
   }
 
   return (
-    <div className="flex h-full flex-col gap-6 overflow-y-auto pr-1">
+    <div className="flex flex-col gap-6 pb-4">
       <section className="space-y-3">
         <h3 className="text-sm font-semibold">Quick annotate</h3>
         <div className="grid grid-cols-2 gap-2">

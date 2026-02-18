@@ -30,13 +30,36 @@ export const DocumentPage = () => {
 
   useEffect(() => {
     if (!documentId) return
+    setPdfError(null)
     let cancelled = false
     const loadDocument = async () => {
       try {
         const data = await documentsApi.get(documentId)
         if (cancelled) return
         setActiveDocument(data)
-        setVersionId(data.current_version?.id?.toString() ?? null)
+
+        const currentVersionId = data.current_version?.id?.toString() ?? null
+        if (currentVersionId) {
+          setVersionId(currentVersionId)
+        } else {
+          const versions = await documentsApi.listVersions(documentId)
+          const latest = [...versions].sort((a, b) => {
+            const aVersion = Number(a.version_number ?? 0)
+            const bVersion = Number(b.version_number ?? 0)
+            if (aVersion !== bVersion) return bVersion - aVersion
+            const aCreated = new Date(a.created_at ?? 0).getTime()
+            const bCreated = new Date(b.created_at ?? 0).getTime()
+            return bCreated - aCreated
+          })[0]
+
+          if (latest?.id) {
+            setVersionId(latest.id.toString())
+          } else {
+            setVersionId(null)
+            setPdfError('No document version is available yet.')
+          }
+        }
+
         const allowedAiRoles = new Set(['viewer', 'editor', 'admin', 'owner'])
         const hasAiRole = data.workspace_role ? allowedAiRoles.has(data.workspace_role) : false
         const documentReadyForAi = data.status !== 'processing' && data.status !== 'error'
