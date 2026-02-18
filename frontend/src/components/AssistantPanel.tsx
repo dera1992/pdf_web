@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useParams } from 'react-router-dom'
 import { requestAiInsight } from '../api/ai'
+import { commentsApi } from '../api/comments'
 import { useAiStore } from '../store/aiStore'
 import { useToastStore } from '../store/toastStore'
 import { useUiStore } from '../store/uiStore'
@@ -30,7 +32,9 @@ export const AssistantPanel = () => {
   const setRightPanelTab = useUiStore((state) => state.setRightPanelTab)
   const pushToast = useToastStore((state) => state.push)
   const inputRef = useRef<HTMLInputElement>(null)
+  const { documentId } = useParams()
   const [inputValue, setInputValue] = useState(draftPrompt)
+  const [expandedSupportingText, setExpandedSupportingText] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     setInputValue(draftPrompt)
@@ -52,6 +56,29 @@ export const AssistantPanel = () => {
     return ''
   }, [selectedPageRange, selectedText])
 
+
+  const suggestedPrompts = useMemo(() => {
+    if (selectedText) {
+      return [
+        'Summarize this selection in 3 bullets.',
+        'Explain this in plain language.',
+        'What is the key obligation in this selection?'
+      ]
+    }
+    if (selectedPageRange) {
+      return [
+        `Summarize pages ${selectedPageRange}.`,
+        `List key risks on pages ${selectedPageRange}.`,
+        `What action items are on pages ${selectedPageRange}?`
+      ]
+    }
+    return [
+      'Summarize the current section.',
+      'What are the top risks in this document?',
+      'Give me key takeaways with citations.'
+    ]
+  }, [selectedPageRange, selectedText])
+
   const handleAction = async (intent: 'question' | 'summary' | 'explain', prompt?: string) => {
     const messageContent = prompt ?? inputValue
     if (!messageContent.trim()) return
@@ -69,7 +96,12 @@ export const AssistantPanel = () => {
     setLoading(true)
     setError(null)
     try {
+      if (!documentId) {
+        throw new Error('No active document selected for AI request.')
+      }
+
       const result = await requestAiInsight({
+        documentId,
         intent,
         prompt: messageContent,
         selectedText: selectedText || undefined,
@@ -121,21 +153,66 @@ export const AssistantPanel = () => {
     pushToast({ id: crypto.randomUUID(), title: 'Copied to clipboard', tone: 'success' })
   }
 
-  const handleInsert = () => {
-    pushToast({
-      id: crypto.randomUUID(),
-      title: 'Inserted into comment',
-      description: 'Draft comment created from the AI response.'
-    })
+  const handleInsert = async (text: string) => {
+    if (!documentId) {
+      pushToast({
+        id: crypto.randomUUID(),
+        title: 'Comment insert failed',
+        description: 'No active document selected.',
+        tone: 'warning'
+      })
+      return
+    }
+
+    try {
+      await commentsApi.createDocumentComment(documentId, text)
+      pushToast({
+        id: crypto.randomUUID(),
+        title: 'Inserted into comment',
+        description: 'Created a document comment from the AI response.',
+        tone: 'success'
+      })
+    } catch (commentError) {
+      console.error(commentError)
+      pushToast({
+        id: crypto.randomUUID(),
+        title: 'Comment insert failed',
+        description: 'Unable to create comment from AI response.',
+        tone: 'warning'
+      })
+    }
   }
 
-  const handleExport = () => {
-    pushToast({
-      id: crypto.randomUUID(),
-      title: 'Exported to notes',
-      description: 'Saved the response to your notes workspace.',
-      tone: 'success'
-    })
+  const handleExport = async (text: string) => {
+    if (!documentId) {
+      pushToast({
+        id: crypto.randomUUID(),
+        title: 'Export failed',
+        description: 'No active document selected.',
+        tone: 'warning'
+      })
+      return
+    }
+
+    try {
+      await commentsApi.createDocumentComment(documentId, `[AI Note]
+
+${text}`)
+      pushToast({
+        id: crypto.randomUUID(),
+        title: 'Exported to notes',
+        description: 'Saved AI response as a note comment in this document.',
+        tone: 'success'
+      })
+    } catch (noteError) {
+      console.error(noteError)
+      pushToast({
+        id: crypto.randomUUID(),
+        title: 'Export failed',
+        description: 'Unable to save AI response to notes.',
+        tone: 'warning'
+      })
+    }
   }
 
   return (
@@ -179,22 +256,35 @@ export const AssistantPanel = () => {
                   </ul>
                   {message.supportingText && message.supportingText.length > 0 && (
                     <div className="mt-3 rounded-md border border-dashed border-surface-200 p-2 text-[11px] text-surface-500 dark:border-surface-700">
-                      <div className="mb-2 font-semibold text-surface-700 dark:text-surface-200">Supporting text</div>
-                      <ul className="space-y-1">
-                        {message.supportingText.map((text) => (
-                          <li key={text}>“{text}”</li>
-                        ))}
-                      </ul>
+                      <button
+                        type="button"
+                        className="mb-2 text-left font-semibold text-surface-700 underline decoration-dotted underline-offset-2 dark:text-surface-200"
+                        onClick={() =>
+                          setExpandedSupportingText((state) => ({
+                            ...state,
+                            [message.id]: !state[message.id]
+                          }))
+                        }
+                      >
+                        {expandedSupportingText[message.id] ? 'Hide supporting text' : 'Show supporting text'}
+                      </button>
+                      {expandedSupportingText[message.id] && (
+                        <ul className="space-y-1">
+                          {message.supportingText.map((text) => (
+                            <li key={text}>“{text}”</li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
                   )}
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Button size="sm" variant="secondary" onClick={() => handleCopy(message.content)}>
                       Copy
                     </Button>
-                    <Button size="sm" variant="secondary" onClick={handleInsert}>
+                    <Button size="sm" variant="secondary" onClick={() => handleInsert(message.content)}>
                       Insert into comment
                     </Button>
-                    <Button size="sm" variant="secondary" onClick={handleExport}>
+                    <Button size="sm" variant="secondary" onClick={() => handleExport(message.content)}>
                       Export to notes
                     </Button>
                   </div>
@@ -272,6 +362,23 @@ export const AssistantPanel = () => {
           >
             Ask about selection
           </Button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {suggestedPrompts.map((suggestion) => (
+            <Button
+              key={suggestion}
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setInputValue(suggestion)
+                setDraftPrompt(suggestion)
+                triggerInputFocus()
+              }}
+              disabled={isLoading || !canUseAi}
+            >
+              {suggestion}
+            </Button>
+          ))}
         </div>
         <div className="flex gap-2">
           <Input

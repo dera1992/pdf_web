@@ -138,9 +138,20 @@ class DocumentViewSet(ModelViewSet):
         from pdf_web.ai.models import ChatSession
 
         document = self.get_object()
-        require_role(request.user, document.workspace, [WorkspaceRole.VIEWER, WorkspaceRole.EDITOR, WorkspaceRole.ADMIN, WorkspaceRole.OWNER])
-        session = ChatSession.objects.create(document=document, user=request.user)
-        return Response({"id": session.id, "document": document.id})
+        require_role(
+            request.user,
+            document.workspace,
+            [WorkspaceRole.VIEWER, WorkspaceRole.EDITOR, WorkspaceRole.ADMIN, WorkspaceRole.OWNER],
+        )
+        session, _ = ChatSession.objects.get_or_create(document=document, user=request.user)
+        return Response(
+            {
+                "id": session.id,
+                "document": document.id,
+                "user": request.user.id,
+                "created_at": session.created_at,
+            }
+        )
 
 
 class DocumentVersionViewSet(ReadOnlyModelViewSet):

@@ -48,6 +48,7 @@ export type Document = {
   current_version?: DocumentVersion | null
   updated_at?: string
   created_at?: string
+  workspace_role?: 'viewer' | 'editor' | 'admin' | 'owner' | null
 }
 
 export type Annotation = {

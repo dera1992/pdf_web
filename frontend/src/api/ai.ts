@@ -1,4 +1,7 @@
+import apiClient from './client'
+
 export type AiRequestPayload = {
+  documentId: string
   prompt: string
   intent: 'question' | 'summary' | 'explain'
   selectedText?: string
@@ -11,50 +14,71 @@ export type AiResult = {
   supportingText: string[]
 }
 
-const buildCitations = (intent: AiRequestPayload['intent']): AiResult['citations'] => {
-  if (intent === 'summary') {
-    return [
-      { id: crypto.randomUUID(), page: 2, label: 'Executive summary overview' },
-      { id: crypto.randomUUID(), page: 4, label: 'Performance highlights' }
-    ]
+type ChatSession = {
+  id: number
+  document: number
+  user: number | null
+  created_at: string
+}
+
+type ChatMessageCitation = {
+  id: string
+  page: number
+  label: string
+}
+
+type ChatMessageResponse = {
+  id: number
+  session: number
+  role: string
+  content: string
+  created_at: string
+  citations?: ChatMessageCitation[]
+  supporting_text?: string[]
+}
+
+const sessionCache = new Map<string, number>()
+
+const formatPromptWithContext = ({ intent, prompt, selectedText, pageRange }: Omit<AiRequestPayload, 'documentId'>) => {
+  const contextParts: string[] = []
+  if (selectedText) {
+    contextParts.push(`Selected text: ${selectedText}`)
   }
-  if (intent === 'explain') {
-    return [
-      { id: crypto.randomUUID(), page: 5, label: 'Key definition' },
-      { id: crypto.randomUUID(), page: 6, label: 'Supporting calculation' }
-    ]
+  if (pageRange) {
+    contextParts.push(`Page range: ${pageRange}`)
   }
+
   return [
-    { id: crypto.randomUUID(), page: 3, label: 'Relevant clause' },
-    { id: crypto.randomUUID(), page: 7, label: 'Cross-reference' }
+    `Intent: ${intent}`,
+    `User prompt: ${prompt}`,
+    contextParts.length > 0 ? `Context:\n${contextParts.join('\n')}` : null
   ]
+    .filter(Boolean)
+    .join('\n\n')
+}
+
+const getOrCreateChatSessionId = async (documentId: string): Promise<number> => {
+  const cachedSessionId = sessionCache.get(documentId)
+  if (cachedSessionId) return cachedSessionId
+
+  const { data: session } = await apiClient.post<ChatSession>(`/documents/${documentId}/chat/`)
+
+  sessionCache.set(documentId, session.id)
+  return session.id
 }
 
 export const requestAiInsight = async (payload: AiRequestPayload): Promise<AiResult> => {
-  const { intent, prompt, selectedText, pageRange } = payload
-  const contextNote = selectedText
-    ? `Based on the selected text (${selectedText.slice(0, 140)}${selectedText.length > 140 ? '…' : ''})`
-    : pageRange
-      ? `Based on pages ${pageRange}`
-      : 'Based on the current document context'
+  const { documentId, ...rest } = payload
+  const sessionId = await getOrCreateChatSessionId(documentId)
+  const content = formatPromptWithContext(rest)
 
-  const response =
-    intent === 'summary'
-      ? `${contextNote}, here is a concise summary: • Key themes include revenue growth and margin improvements. • Risks are centered on FX exposure and supply constraints. • The outlook points to steady Q4 demand with cautious hiring.`
-      : intent === 'explain'
-        ? `${contextNote}, here's a simplified explanation: The highlighted concept describes how revenue recognition is deferred until delivery. In plain terms, the company waits to book income until obligations are met.`
-        : `${contextNote}, the answer is: The clause indicates the renewal window is 30 days before term end, and automatic renewal applies unless written notice is provided.`
-
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({
-        response,
-        citations: buildCitations(intent),
-        supportingText: [
-          '“Renewal notices must be submitted no fewer than thirty (30) days before termination.”',
-          '“Revenue is recognized when performance obligations are satisfied.”'
-        ]
-      })
-    }, 700)
+  const { data } = await apiClient.post<ChatMessageResponse>(`/chat/${sessionId}/message/`, {
+    content
   })
+
+  return {
+    response: data.content,
+    citations: data.citations ?? [],
+    supportingText: data.supporting_text ?? []
+  }
 }
