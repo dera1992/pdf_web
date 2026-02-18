@@ -7,6 +7,7 @@ import './utils/i18n'
 import { ThemeProvider } from './components/ThemeProvider'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { ToastProvider } from './components/ToastProvider'
+import { AnnotationsProvider } from './store/annotationsRedux'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -21,9 +22,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ThemeProvider>
       <ErrorBoundary>
-        <QueryClientProvider client={queryClient}>
-          <App />
-        </QueryClientProvider>
+        <AnnotationsProvider>
+          <QueryClientProvider client={queryClient}>
+            <App />
+          </QueryClientProvider>
+        </AnnotationsProvider>
       </ErrorBoundary>
       <ToastProvider />
     </ThemeProvider>
